@@ -1,69 +1,55 @@
+# -*- coding: utf-8 -*-
 """
 =============================================================================
-IoT Systém s Cloudovým Backendom - Flask Backend
+IoT Meteorologicka Stanica - Flask Backend
 =============================================================================
-Tento súbor je SRDCE celého projektu. Je to server (backend), ktorý:
-  1. Prijíma dáta z HTML formulárov (Frontend A)
-  2. Spracováva výpočty (kalkulačka)
-  3. Ukladá výsledky do SQLite databázy
-  4. Poskytuje API endpointy pre Frontend B (IoT klient)
+Tema projektu: IoT meteorologicka stanica
+  - Prijima namerané hodnoty zo senzorov (teplota, tlak, rychlost vetra)
+  - Prevadza fyzikalne jednotky medzi rozlichnymi sustavami
+  - Uklada historiu prevodov do suboru prevody.json
+  - Poskytuje REST API pre klientsky dashboard (Frontend B)
 
-Autor: [Tvoje meno]
-Predmet: Internet vecí
+Autor: Samuel Stefan
+Predmet: Internet veci
 =============================================================================
 """
 
-# ─────────────────────────────────────────────────────────────────────────────
-# IMPORT KNIŽNÍC
-# ─────────────────────────────────────────────────────────────────────────────
-# Flask       = webový framework (základ servera)
-# request     = objekt na čítanie dát z URL parametrov (?cislo1=10&...)
-# jsonify     = pomocník na odosielanie JSON odpovedí (pre API)
-# render_template = načítanie HTML šablón z priečinka "templates/"
-# flask_cors  = riešenie CORS politiky (povolenie komunikácie medzi doménami)
-# sqlite3     = vstavaná Python knižnica na prácu s databázou
-# datetime    = práca s dátumom a časom
+# Importy knizhnic
+# Flask       = webovy framework (zaklad servera)
+# request     = objekt na citanie dat z URL parametrov (?cislo1=10&...)
+# jsonify     = pomocnik na odosielanie JSON odpovedi (pre API)
+# render_template = nacitanie HTML sablon z priecinka "templates/"
+# flask_cors  = riesenie CORS politiky (povolenie komunikacie medzi domenami)
+# sqlite3     = vstavana Python knizhnica na pracu s databazou
+# datetime    = praca s datumom a casom
+# json, os    = praca s JSON suborom prevody.json
 
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 import sqlite3
 import datetime
+import json
+import os
 
-# ─────────────────────────────────────────────────────────────────────────────
-# VYTVORENIE APLIKÁCIE
-# ─────────────────────────────────────────────────────────────────────────────
-# Flask(__name__) = vytvorí inštanciu Flask aplikácie
-# CORS(app)       = povolí komunikáciu z INÝCH domén (Frontend B má inú URL!)
-#
-# 🔑 Prečo CORS? Prehliadač štandardne BLOKUJE požiadavky medzi rôznymi
-#    doménami (napr. frontend-a.com → backend.com). CORS to povolí.
-
+# Vytvorenie aplikacie
+# Flask(__name__) = vytvori instanciu Flask aplikacie
+# CORS(app)       = povoli komunikaciu z INYCH domien (Frontend B ma inu URL!)
 app = Flask(__name__)
-CORS(app)  # Bez tohto by Frontend B nemohol komunikovať s backendom!
+CORS(app)  # Bez tohto by Frontend B nemohol komunikovat s backendom!
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DATABÁZA - SQLite
-# ─────────────────────────────────────────────────────────────────────────────
-# SQLite je jednoduchá databáza uložená v jednom súbore (databaza.db).
-# Netreba inštalovať žiadny databázový server — ideálne pre výuku.
-#
-# Schéma tabuľky "vypocty":
-#   id        = automatické číslovanie (PRIMARY KEY)
-#   cislo1    = prvé zadané číslo
-#   cislo2    = druhé zadané číslo
-#   operacia  = typ operácie (plus, minus, krat, deleno)
-#   vysledok  = výsledok výpočtu
-#   cas       = kedy bol výpočet vykonaný
+# ============================================================================
+# DATABAZA - SQLite
+# ============================================================================
+# SQLite je jednoduchá databaza ulozena v jednom subore (databaza.db).
+# Tabulka "vypocty": id, cislo1, cislo2, operacia, vysledok, cas
 
 DATABASE = "databaza.db"
 
 
 def inicializuj_databazu():
     """
-    Vytvorí tabuľku 'vypocty', ak ešte neexistuje.
-    Volá sa raz pri štarte servera.
-    
-    IF NOT EXISTS = ak tabuľka už existuje, nič sa nestane (bezpečné).
+    Vytvori tabulku 'vypocty', ak este neexistuje.
+    Vola sa raz pri starte servera.
     """
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
@@ -79,21 +65,13 @@ def inicializuj_databazu():
     """)
     conn.commit()
     conn.close()
-    print("✅ Databáza inicializovaná.")
+    print("Databaza inicializovana.")
 
 
 def uloz_do_databazy(cislo1, cislo2, operacia, vysledok):
     """
-    Uloží jeden záznam o výpočte do databázy.
-    
-    Parametre:
-        cislo1    (float): Prvé číslo
-        cislo2    (float): Druhé číslo
-        operacia  (str):   Typ operácie
-        vysledok  (float): Výsledok výpočtu
-    
-    Vracia:
-        int: ID nového záznamu
+    Ulozi jeden zaznam o vypocte do databazy.
+    Vracia int: ID noveho zaznamu.
     """
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
@@ -110,81 +88,56 @@ def uloz_do_databazy(cislo1, cislo2, operacia, vysledok):
 
 def nacitaj_vsetky_vypocty():
     """
-    Načíta VŠETKY záznamy z tabuľky 'vypocty'.
-    
-    Vracia:
-        list: Zoznam slovníkov (dict), každý predstavuje jeden výpočet.
-    
-    Poznámka: row_factory = sqlite3.Row umožňuje pristupovať k stĺpcom
-              cez mená (row["cislo1"]) namiesto indexov (row[0]).
+    Nacita VSETKY zaznamy z tabulky 'vypocty'.
+    Vracia list slovnikov (dict).
     """
     conn = sqlite3.connect(DATABASE)
-    conn.row_factory = sqlite3.Row  # Výsledky ako slovníky
+    conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM vypocty ORDER BY id DESC")
     riadky = cursor.fetchall()
     conn.close()
-    # Konverzia sqlite3.Row objektov na bežné Python slovníky
     return [dict(riadok) for riadok in riadky]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 1: Hlavná stránka (Frontend A - Administračný)
-# ─────────────────────────────────────────────────────────────────────────────
-# URL: http://tvoj-backend.azurewebsites.net/
-# Metóda: GET
-# Čo robí: Zobrazí hlavnú HTML stránku s formulárom kalkulačky.
+# ============================================================================
+# ROUTE 1: Hlavna stranka (Frontend A - Administracny)
+# URL: /
+# ============================================================================
 
 @app.route("/")
 def hlavna_stranka():
-    """
-    Zobrazí hlavnú stránku - Frontend A.
-    render_template() hľadá súbor v priečinku templates/
-    """
+    """Zobrazí hlavnu stranku - Frontend A."""
     return render_template("frontend_a.html")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 2: Výpočet (spracovanie formulára)
-# ─────────────────────────────────────────────────────────────────────────────
-# URL: http://tvoj-backend.azurewebsites.net/vypocet?cislo1=10&cislo2=5&operacia=plus
-# Metóda: GET
-# 
-# 🔑 Prečo GET a nie POST?
-#    - Parametre sú VIDITEĽNÉ v URL riadku prehliadača
-#    - Vedúci to chce kvôli demonštrácii, ako fungujú HTTP requesty
-#    - V reálnom IoT prostredí sa GET často používa pre jednoduchosť
-#
-# request.args.get("cislo1") = prečíta hodnotu parametra "cislo1" z URL
+# ============================================================================
+# ROUTE 2: Vypocet (spracovanie formulara)
+# URL: /vypocet?cislo1=10&cislo2=5&operacia=plus
+# GET parametre su VIDITELNE v URL - podmienka zadania
+# ============================================================================
 
 @app.route("/vypocet")
 def vypocet():
     """
-    Prijme čísla a operáciu cez GET parametre, vykoná výpočet,
-    uloží do databázy a vráti výsledok.
-    
-    Príklad URL:
-        /vypocet?cislo1=10&cislo2=5&operacia=plus
-    
-    Výstup (JSON):
-        {"cislo1": 10, "cislo2": 5, "operacia": "plus", "vysledok": 15, "id": 1}
+    Prijme cisla a operaciu cez GET parametre, vykona vypocet,
+    ulozi do databazy a vrati vysledok ako JSON.
+
+    Priklad URL: /vypocet?cislo1=10&cislo2=5&operacia=plus
     """
-    # --- Krok 1: Prečítanie parametrov z URL ---
-    # request.args.get() = bezpečné čítanie GET parametrov
-    # Ak parameter chýba, vráti None (default)
+    # Krok 1: Citanie parametrov z URL
     cislo1_str = request.args.get("cislo1", "0")
     cislo2_str = request.args.get("cislo2", "0")
     operacia = request.args.get("operacia", "plus")
 
-    # --- Krok 2: Validácia vstupov ---
-    # Skúsime previesť text na čísla. Ak sa nepodarí → chyba.
+    # Krok 2: Validacia vstupov
     try:
         cislo1 = float(cislo1_str)
         cislo2 = float(cislo2_str)
     except ValueError:
-        return jsonify({"chyba": "Neplatné čísla! Zadajte číselné hodnoty."}), 400
+        return jsonify({"chyba": "Neplatne cisla! Zadajte ciselne hodnoty."}), 400
 
-    # --- Krok 3: Výpočet podľa zvolenej operácie ---
+    # Krok 3: Vypocet podla zvolenej operacie
     if operacia == "plus":
         vysledok = cislo1 + cislo2
     elif operacia == "minus":
@@ -193,16 +146,15 @@ def vypocet():
         vysledok = cislo1 * cislo2
     elif operacia == "deleno":
         if cislo2 == 0:
-            return jsonify({"chyba": "Delenie nulou nie je možné!"}), 400
+            return jsonify({"chyba": "Delenie nulou nie je mozne!"}), 400
         vysledok = cislo1 / cislo2
     else:
-        return jsonify({"chyba": f"Neznáma operácia: {operacia}"}), 400
+        return jsonify({"chyba": "Neznama operacia: " + operacia}), 400
 
-    # --- Krok 4: Uloženie do databázy ---
+    # Krok 4: Ulozenie do databazy
     nove_id = uloz_do_databazy(cislo1, cislo2, operacia, vysledok)
 
-    # --- Krok 5: Vrátenie výsledku ako JSON ---
-    # jsonify() = vytvorí JSON odpoveď (štandard pre API komunikáciu)
+    # Krok 5: Vratie vysledku ako JSON
     return jsonify({
         "id": nove_id,
         "cislo1": cislo1,
@@ -213,77 +165,53 @@ def vypocet():
     })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 3: API - Získanie histórie výpočtov
-# ─────────────────────────────────────────────────────────────────────────────
-# URL: http://tvoj-backend.azurewebsites.net/api/historia
-# Metóda: GET
-# Čo robí: Vráti VŠETKY výpočty z databázy ako JSON (pre Frontend B).
-#
-# 🔑 Toto je kľúčový endpoint pre Frontend B!
-#    Frontend B pravidelne volá tento endpoint a zobrazuje výsledky.
+# ============================================================================
+# ROUTE 3: API - Ziskanie historie vypoctov
+# URL: /api/historia
+# ============================================================================
 
 @app.route("/api/historia")
 def historia():
     """
-    API endpoint - vráti celú históriu výpočtov ako JSON pole.
-    
-    Výstup (JSON):
-        [
-            {"id": 3, "cislo1": 10, "cislo2": 5, "operacia": "plus", "vysledok": 15, "cas": "..."},
-            {"id": 2, "cislo1": 7, "cislo2": 3, "operacia": "minus", "vysledok": 4, "cas": "..."},
-            ...
-        ]
+    API endpoint - vrati celu historiu vypoctov ako JSON pole.
+    Pouziva Frontend B na zobrazenie live feedu.
     """
     vypocty = nacitaj_vsetky_vypocty()
     return jsonify(vypocty)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 4: API - Posledný výpočet
-# ─────────────────────────────────────────────────────────────────────────────
-# URL: http://tvoj-backend.azurewebsites.net/api/posledny
-# Metóda: GET
-# Čo robí: Vráti IBA posledný výpočet (napr. pre IoT displej).
+# ============================================================================
+# ROUTE 4: API - Posledny vypocet
+# URL: /api/posledny
+# ============================================================================
 
 @app.route("/api/posledny")
 def posledny_vypocet():
-    """
-    API endpoint - vráti iba posledný vykonaný výpočet.
-    Užitočné pre IoT zariadenia, ktoré chcú zobraziť len aktuálny stav.
-    """
+    """API endpoint - vrati iba posledny vykonany vypocet."""
     vypocty = nacitaj_vsetky_vypocty()
     if vypocty:
-        return jsonify(vypocty[0])  # Prvý záznam = najnovší (ORDER BY DESC)
+        return jsonify(vypocty[0])
     else:
-        return jsonify({"info": "Zatiaľ neboli vykonané žiadne výpočty."}), 404
+        return jsonify({"info": "Zatial neboli vykonane ziadne vypocty."}), 404
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 5: API - Štatistiky
-# ─────────────────────────────────────────────────────────────────────────────
-# URL: http://tvoj-backend.azurewebsites.net/api/statistiky
-# Metóda: GET
-# Čo robí: Vráti súhrn štatistík (celkový počet, priemer, atď.)
+# ============================================================================
+# ROUTE 5: API - Statistiky
+# URL: /api/statistiky
+# ============================================================================
 
 @app.route("/api/statistiky")
 def statistiky():
-    """
-    API endpoint - vráti základné štatistiky o výpočtoch.
-    Demonštruje prácu s SQL agregačnými funkciami.
-    """
+    """API endpoint - vrati zakladne statistiky o vypoctoch."""
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
-    # Celkový počet výpočtov
     cursor.execute("SELECT COUNT(*) FROM vypocty")
     pocet = cursor.fetchone()[0]
 
-    # Priemerný výsledok
     cursor.execute("SELECT AVG(vysledok) FROM vypocty")
     priemer = cursor.fetchone()[0]
 
-    # Počet výpočtov podľa operácie
     cursor.execute("SELECT operacia, COUNT(*) as pocet FROM vypocty GROUP BY operacia")
     podla_operacie = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -296,45 +224,34 @@ def statistiky():
     })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 6: Frontend B (Klientsky/IoT pohľad)
-# ─────────────────────────────────────────────────────────────────────────────
-# V reálnom nasadení by Frontend B bežal na INEJ doméne.
-# Pre jednoduchosť ho servírujeme aj z tohto servera.
-# V produkcii by bol na: http://iot-klient.azurewebsites.net/
+# ============================================================================
+# ROUTE 6: Frontend B (Klientsky/IoT pohlad)
+# URL: /klient
+# ============================================================================
 
 @app.route("/klient")
 def klientsky_pohlad():
-    """
-    Zobrazí Frontend B - klientsky/IoT pohľad.
-    Táto stránka len ČÍTA dáta z API a zobrazuje výsledky.
-    """
+    """Zobrazi Frontend B - klientsky/IoT pohlad."""
     return render_template("frontend_b.html")
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ROUTE 7: IoT Simulácia (ESP32 / senzor)
-# ─────────────────────────────────────────────────────────────────────────────
-# Tento endpoint simuluje, ako by IoT zariadenie (napr. ESP32) posielalo dáta.
+# ============================================================================
+# ROUTE 7: IoT Simulacia (ESP32 / senzor)
 # URL: /iot/odosli?teplota=22.5&vlhkost=60
-# 
-# V reálnom svete by ESP32 posielal HTTP GET request na tento endpoint.
+# ============================================================================
 
 @app.route("/iot/odosli")
 def iot_odosli():
     """
-    Simulácia IoT endpointu - prijíma dáta zo senzora.
-    
-    Príklad volania z ESP32 (Arduino kód):
-        http.begin("http://tvoj-backend.azurewebsites.net/iot/odosli?teplota=22.5&vlhkost=60");
+    Simulacia IoT endpointu - prijima data zo senzora.
+    V realnom svete by ESP32 posielal HTTP GET request na tento endpoint.
     """
     teplota = request.args.get("teplota", type=float)
     vlhkost = request.args.get("vlhkost", type=float)
 
     if teplota is None or vlhkost is None:
-        return jsonify({"chyba": "Chýbajú parametre teplota a vlhkost!"}), 400
+        return jsonify({"chyba": "Chybaju parametre teplota a vlhkost!"}), 400
 
-    # Tu by sme dáta uložili do databázy (zjednodušené pre ukážku)
     return jsonify({
         "status": "ok",
         "prijate_data": {
@@ -342,28 +259,152 @@ def iot_odosli():
             "vlhkost": vlhkost,
             "cas": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         },
-        "sprava": "Dáta zo senzora boli úspešne prijaté."
+        "sprava": "Data zo senzora boli uspesne prijate."
     })
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# ŠTART SERVERA
-# ─────────────────────────────────────────────────────────────────────────────
-# __name__ == "__main__" = tento blok sa spustí len ak spustíme súbor priamo
-#                          (nie ak ho importujeme z iného súboru)
-# host="0.0.0.0" = server počúva na všetkých sieťových rozhraniach
-# port=5000      = štandardný Flask port
-# debug=True     = automaticky reštartuje server pri zmene kódu (len pre vývoj!)
+# ============================================================================
+# PREVODNIK METEOROLOGICKYCH JEDNOTIEK
+# ============================================================================
+# Tema projektu: IoT meteorologicka stanica prevadza namerané fyzikalne veliciny
+# Podporene prevody (podmienka zadania: min. 3):
+#   c_to_f     : stupne Celzia -> Fahrenheit    (teplota zo senzora)
+#   hpa_to_mmhg: hektopascaly -> milimetre rtuti (atmosfericky tlak)
+#   ms_to_kmh  : metre/sekunda -> km/hodinu      (rychlost vetra)
+#
+# Data sa ukladaju do suboru prevody.json (zoznam JSON objektov).
+
+SUBOR_PREVODOV = "prevody.json"
+
+
+def nacitaj_prevody():
+    """
+    Nacita historiu prevodov zo suboru prevody.json.
+
+    Vracia:
+        list: Zoznam slovnikov, kazdy predstavuje jeden prevod.
+              Ak subor neexistuje, vrati prazdny zoznam.
+    """
+    if not os.path.exists(SUBOR_PREVODOV):
+        return []
+    with open(SUBOR_PREVODOV, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+
+def uloz_prevod(zaznam):
+    """
+    Prida novy zaznam prevodu do suboru prevody.json.
+
+    Parametre:
+        zaznam (dict): Slovnik s klucmi hodnota, typ, vysledok, popis, cas.
+    """
+    prevody = nacitaj_prevody()
+    prevody.append(zaznam)
+    with open(SUBOR_PREVODOV, "w", encoding="utf-8") as f:
+        json.dump(prevody, f, ensure_ascii=False, indent=2)
+
+
+# ============================================================================
+# ROUTE 8: API - Prevodnik jednotiek
+# URL: /api/prevod?hodnota=25&typ=c_to_f
+# GET parametre (viditelne v URL - podmienka zadania):
+#   hodnota : ciselna hodnota na prevod (float)
+#   typ     : druh prevodu (c_to_f | hpa_to_mmhg | ms_to_kmh)
+# ============================================================================
+
+@app.route("/api/prevod")
+def prevod():
+    """
+    Prijme meteorologicku hodnotu a typ prevodu cez 2 GET parametre,
+    vykona konverziu jednotiek a ulozi zaznam do prevody.json.
+
+    Priklady URL:
+        /api/prevod?hodnota=25&typ=c_to_f         -> 25 C = 77.00 F
+        /api/prevod?hodnota=1013&typ=hpa_to_mmhg  -> 1013 hPa = 759.81 mmHg
+        /api/prevod?hodnota=10&typ=ms_to_kmh      -> 10 m/s = 36.00 km/h
+    """
+    # Krok 1: Citanie 2 GET parametrov z URL (?hodnota=...&typ=...)
+    hodnota = request.args.get("hodnota", type=float)
+    typ = request.args.get("typ", "c_to_f")
+
+    # Krok 2: Validacia vstupnej hodnoty
+    if hodnota is None:
+        return jsonify({"chyba": "Zadajte ciselnu hodnotu parametrom 'hodnota'!"}), 400
+
+    # Krok 3: Vypocet podla zvoleného druhu prevodu
+    if typ == "c_to_f":
+        # Teplota: Celzius -> Fahrenheit (vzorec: F = C * 9/5 + 32)
+        v = hodnota * 9 / 5 + 32
+        popis = "{} C = {:.2f} F".format(hodnota, v)
+    elif typ == "hpa_to_mmhg":
+        # Tlak: hektopascaly -> milimetre rtuti (1 hPa = 0.75006 mmHg)
+        v = hodnota * 0.75006
+        popis = "{} hPa = {:.2f} mmHg".format(hodnota, v)
+    elif typ == "ms_to_kmh":
+        # Rychlost vetra: metre/sekunda -> kilometre/hodina (1 m/s = 3.6 km/h)
+        v = hodnota * 3.6
+        popis = "{} m/s = {:.2f} km/h".format(hodnota, v)
+    else:
+        return jsonify({"chyba": "Neznamy typ prevodu: {}. Povolene: c_to_f, hpa_to_mmhg, ms_to_kmh".format(typ)}), 400
+
+    # Krok 4: Zostavenie zaznamu a ulozenie do prevody.json
+    zaznam = {
+        "hodnota": hodnota,
+        "typ": typ,
+        "vysledok": round(v, 2),
+        "popis": popis,
+        "cas": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    }
+    uloz_prevod(zaznam)
+
+    # Krok 5: Vratie JSON odpovede
+    return jsonify(zaznam)
+
+
+# ============================================================================
+# ROUTE 9: API - Historia prevodov
+# URL: /api/historia-prevodov
+# Cita prevody.json a vracia cely zoznam ako JSON pole.
+# Ak subor este neexistuje, vracia prazdne pole [].
+# ============================================================================
+
+@app.route("/api/historia-prevodov")
+def historia_prevodov():
+    """
+    API endpoint - vrati historiu vsetkych prevodov jednotiek.
+    Frontend B pravidelne vola tento endpoint a zobrazuje tabulku.
+
+    Vystup (JSON pole):
+        [
+          {"hodnota": 25, "typ": "c_to_f", "vysledok": 77.0,
+           "popis": "25 C = 77.00 F", "cas": "2026-04-24 10:00:00"},
+          ...
+        ]
+    """
+    return jsonify(nacitaj_prevody())
+
+
+# ============================================================================
+# START SERVERA
+# ============================================================================
+# Tento blok sa spusti len ak spustime subor priamo (python app.py)
+# host="0.0.0.0" = server pocuva na vsetkych sietovych rozhraniach
+# port=5000      = standardny Flask port
+# debug=True     = automaticky restartuje server pri zmene kodu (len pre vyvoj!)
 
 if __name__ == "__main__":
-    inicializuj_databazu()  # Vytvorí tabuľku pri prvom spustení
+    inicializuj_databazu()
     print("=" * 60)
-    print("🚀 IoT Backend Server beží!")
+    print("IoT Backend Server bezi!")
     print("=" * 60)
-    print("   Frontend A (Admin):  http://localhost:5000/")
-    print("   Frontend B (Klient): http://localhost:5000/klient")
-    print("   API História:        http://localhost:5000/api/historia")
-    print("   API Štatistiky:      http://localhost:5000/api/statistiky")
-    print("   IoT Endpoint:        http://localhost:5000/iot/odosli?teplota=22&vlhkost=60")
+    print("   Frontend A (Admin):       http://localhost:5000/")
+    print("   Frontend B (Klient):      http://localhost:5000/klient")
+    print("   API Historia:             http://localhost:5000/api/historia")
+    print("   API Statistiky:           http://localhost:5000/api/statistiky")
+    print("   IoT Endpoint:             http://localhost:5000/iot/odosli?teplota=22&vlhkost=60")
+    print("   Prevodnik (c_to_f):       http://localhost:5000/api/prevod?hodnota=25&typ=c_to_f")
+    print("   Prevodnik (hpa_to_mmhg):  http://localhost:5000/api/prevod?hodnota=1013&typ=hpa_to_mmhg")
+    print("   Prevodnik (ms_to_kmh):    http://localhost:5000/api/prevod?hodnota=10&typ=ms_to_kmh")
+    print("   Historia prevodov:        http://localhost:5000/api/historia-prevodov")
     print("=" * 60)
     app.run(host="0.0.0.0", port=5000, debug=True)

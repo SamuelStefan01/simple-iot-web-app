@@ -414,6 +414,39 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
             </div>
         </div>
 
+        <!-- ═══════════════════════════════════════════════════
+             HISTÓRIA PREVODOV JEDNOTIEK
+             ═══════════════════════════════════════════════════
+             Zobrazuje záznamy z /api/historia-prevodov.
+             Dáta sa načítavajú cez fetch() každých 5 sekúnd.
+             ═══════════════════════════════════════════════════ -->
+        <div class="card">
+            <h2>🌡️ História prevodov meteorologických jednotiek</h2>
+            <p style="color: #8892b0; margin-bottom: 15px; font-size: 0.9em;">
+                Dáta z API endpointu
+                <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #e94560;">/api/historia-prevodov</code>
+                — automatická obnova každých 5 sekúnd
+            </p>
+            <!-- Tabuľka prevodov: Vstup | Typ | Výsledok | Čas -->
+            <table class="history-table" id="tabPrevody" style="width:100%; border-collapse:collapse;">
+                <thead>
+                    <tr>
+                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Vstup</th>
+                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Typ prevodu</th>
+                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Výsledok</th>
+                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Čas</th>
+                    </tr>
+                </thead>
+                <tbody id="tabelaPrevodovBody">
+                    <tr>
+                        <td colspan="4" style="padding:20px;text-align:center;color:#8892b0;">
+                            Čakám na dáta...
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════════
@@ -598,6 +631,63 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
         }
 
         // ──────────────────────────────────────────────────────────────
+        // NAČÍTANIE HISTÓRIE PREVODOV JEDNOTIEK
+        // ──────────────────────────────────────────────────────────────
+        // Voláme endpoint /api/historia-prevodov cez fetch().
+        // Dáta sa obnovia každých 5 sekúnd (polling — rovnaký princíp
+        // ako pri hlavnej histórii výpočtov).
+
+        async function nacitajPrevody() {
+            try {
+                // GET request na /api/historia-prevodov
+                const url = `${backendUrl || window.location.origin}/api/historia-prevodov`;
+                const r = await fetch(url);
+                const data = await r.json();
+
+                const tbody = document.getElementById("tabelaPrevodovBody");
+
+                if (!data || data.length === 0) {
+                    // Prázdna história — zobrazte informatívny riadok
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="4" style="padding:20px;text-align:center;color:#8892b0;">
+                                Zatiaľ žiadne prevody. Použite prevodník na Frontende A!
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                // Zostrojíme riadky tabuľky z JSON dát (najnovší prevod navrchu)
+                const riadky = [...data].reverse().map(p => `
+                    <tr>
+                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);">
+                            ${p.hodnota}
+                        </td>
+                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#8892b0;">
+                            ${p.typ}
+                        </td>
+                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#e94560;font-weight:700;">
+                            ${p.vysledok}
+                        </td>
+                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#555;font-size:0.8em;">
+                            ${p.cas}
+                        </td>
+                    </tr>
+                `).join("");
+
+                tbody.innerHTML = riadky;
+
+            } catch (err) {
+                // Ak backend offline, ticho ignorujeme (nechceme pokaziť iné karty)
+                console.warn("⚠️ Nepodarilo sa načítať históriu prevodov:", err);
+            }
+        }
+
+        // Automatická obnova histórie prevodov každých 5 sekúnd
+        setInterval(nacitajPrevody, 5000);
+
+        // ──────────────────────────────────────────────────────────────
         // INICIALIZÁCIA
         // ──────────────────────────────────────────────────────────────
         // Predvyplníme URL pole aktuálnou doménou
@@ -605,6 +695,9 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
 
         // Automatické pripojenie (ak sme na rovnakej doméne)
         pripojNaBackend();
+
+        // Načítame aj históriu prevodov hneď pri štarte
+        nacitajPrevody();
     </script>
 </body>
 </html>

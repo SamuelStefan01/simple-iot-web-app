@@ -426,6 +426,80 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
         </div>
 
         <!-- ═══════════════════════════════════════════════════
+             PREVODNÍK METEOROLOGICKÝCH JEDNOTIEK
+             ═══════════════════════════════════════════════════
+             Podmienky zadania splnené v tejto karte:
+               ✅ <input type="number">  — Text Input
+               ✅ <select>              — výber typu prevodu
+               ✅ <button type="submit"> — Submit Button
+               ✅ GET parametre viditeľné v URL (?hodnota=...&typ=...)
+             ═══════════════════════════════════════════════════ -->
+        <div class="card">
+            <h2>🌡️ Prevodník meteorologických jednotiek</h2>
+            <p style="color: #8892b0; margin-bottom: 18px; font-size: 0.9em;">
+                Zadajte nameranú hodnotu zo senzora a vyberte typ prevodu.
+                Výsledok sa uloží na serveri a zobrazí aj na Frontende B.
+            </p>
+
+            <!--
+                FORMULÁR — odosielanie cez fetch() ako GET request.
+                Parametre ?hodnota=...&typ=... budú viditeľné v URL.
+            -->
+            <form onsubmit="return odosliPrevod(event)">
+
+                <!-- INPUT TYPE="NUMBER": číselná hodnota zo senzora -->
+                <div class="form-group">
+                    <label for="pHodnota">Nameraná hodnota:</label>
+                    <input type="number" id="pHodnota"
+                           placeholder="napr. 25 (teplota), 1013 (tlak), 10 (vietor)"
+                           step="any" required>
+                </div>
+
+                <!-- SELECT: výber druhu prevodu (splní podmienku <select> alebo radio) -->
+                <div class="form-group">
+                    <label for="pTyp">Typ prevodu:</label>
+                    <select id="pTyp" style="
+                        width: 100%;
+                        padding: 12px 16px;
+                        background: rgba(255,255,255,0.08);
+                        border: 1px solid rgba(255,255,255,0.2);
+                        border-radius: 8px;
+                        color: #fff;
+                        font-size: 1em;
+                    ">
+                        <!-- Tri podporované prevody podľa zadania -->
+                        <option value="c_to_f">🌡️ Teplota: °C → °F</option>
+                        <option value="hpa_to_mmhg">🔵 Tlak: hPa → mmHg</option>
+                        <option value="ms_to_kmh">💨 Vietor: m/s → km/h</option>
+                    </select>
+                </div>
+
+                <!-- SUBMIT BUTTON: odoslanie GET requestu -->
+                <button type="submit" class="submit-btn" id="prevodBtn">
+                    🔄 Previesť jednotky
+                </button>
+            </form>
+
+            <!-- Výsledok prevodu + ukážka URL (GET parametre viditeľné) -->
+            <div id="pVystup" style="
+                margin-top: 18px;
+                padding: 14px 18px;
+                background: rgba(0, 212, 255, 0.08);
+                border: 1px solid rgba(0, 212, 255, 0.2);
+                border-radius: 10px;
+                color: #00d4ff;
+                font-size: 1.1em;
+                display: none;
+            "></div>
+
+            <!-- URL ukážka — demonštruje viditeľné GET parametre -->
+            <div class="url-preview" id="prevodUrlPreview" style="margin-top: 12px;">
+                <strong>URL Request:</strong><br>
+                <span id="prevodUrlText">/api/prevod?hodnota=_&amp;typ=c_to_f</span>
+            </div>
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════
              HISTÓRIA VÝPOČTOV
              ═══════════════════════════════════════════════════ -->
         <div class="card">
@@ -635,10 +709,82 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
         }
 
         // ──────────────────────────────────────────────────────────────
+        // PREVODNÍK JEDNOTIEK — URL PREVIEW
+        // ──────────────────────────────────────────────────────────────
+        // Aktualizuje ukážku URL pri zmene hodnôt, aby študenti videli
+        // ako sa GET parametre tvoria v adresnom riadku.
+
+        function aktualizujPrevodUrl() {
+            const h = document.getElementById("pHodnota").value || "_";
+            const t = document.getElementById("pTyp").value;
+            document.getElementById("prevodUrlText").innerHTML =
+                `<span class="highlight">${BACKEND_URL}</span>/api/prevod?hodnota=${h}&amp;typ=${t}`;
+        }
+
+        document.getElementById("pHodnota").addEventListener("input", aktualizujPrevodUrl);
+        document.getElementById("pTyp").addEventListener("change", aktualizujPrevodUrl);
+
+        // ──────────────────────────────────────────────────────────────
+        // ODOSLANIE FORMULÁRA PREVODNÍKA (GET request)
+        // ──────────────────────────────────────────────────────────────
+        // Rovnaký princíp ako kalkulačka: fetch() s GET parametrami.
+        // Parametre ?hodnota=...&typ=... sú viditeľné v URL — podmienka zadania.
+
+        async function odosliPrevod(e) {
+            // Zabrání obnoveniu stránky pri odoslaní formulára
+            e.preventDefault();
+
+            const h = document.getElementById("pHodnota").value;
+            const t = document.getElementById("pTyp").value;
+
+            // Zmena tlačidla na loading stav
+            const btn = document.getElementById("prevodBtn");
+            btn.innerHTML = '<span class="spinner"></span> Prevádzam...';
+            btn.disabled = true;
+
+            try {
+                // ─── KĽÚČOVÝ MOMENT: GET REQUEST s 2 viditeľnými parametrami ───
+                // URL: /api/prevod?hodnota=25&typ=c_to_f
+                const url = `${BACKEND_URL}/api/prevod?hodnota=${h}&typ=${t}`;
+                console.log("📤 Odosielam GET request na:", url);
+
+                const r = await fetch(url);
+                const d = await r.json();
+
+                console.log("📥 Odpoveď zo servera:", d);
+
+                const vystup = document.getElementById("pVystup");
+                if (d.chyba) {
+                    // Server vrátil chybu
+                    vystup.style.color = "#ff6b6b";
+                    vystup.textContent = "⚠️ " + d.chyba;
+                } else {
+                    // Úspech — zobrazíme popis prevodu zo servera
+                    vystup.style.color = "#00d4ff";
+                    vystup.textContent = "✅ " + d.popis;
+                }
+                vystup.style.display = "block";
+
+            } catch (err) {
+                console.error("❌ Chyba:", err);
+                const vystup = document.getElementById("pVystup");
+                vystup.style.color = "#ff6b6b";
+                vystup.textContent = "⚠️ Nepodarilo sa spojiť so serverom.";
+                vystup.style.display = "block";
+            } finally {
+                btn.innerHTML = "🔄 Previesť jednotky";
+                btn.disabled = false;
+            }
+
+            return false;
+        }
+
+        // ──────────────────────────────────────────────────────────────
         // INICIALIZÁCIA
         // ──────────────────────────────────────────────────────────────
         // Pri načítaní stránky: aktualizujeme URL preview a načítame históriu
         aktualizujUrlPreview();
+        aktualizujPrevodUrl();
         nacitajHistoriu();
     </script>
 </body>
