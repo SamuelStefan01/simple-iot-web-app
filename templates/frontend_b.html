@@ -23,359 +23,694 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>📡 Frontend B — IoT Klient</title>
+    <title>IoT Klient Dashboard — Frontend B</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-        /* ---------- ZÁKLAD ---------- */
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        /* ═══════════════════════════════════════════════════════════
+           RESET & TOKENS
+           ═══════════════════════════════════════════════════════════ */
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --red:        #ff3d6b;
+            --red-dim:    rgba(255, 61, 107, 0.12);
+            --red-glow:   rgba(255, 61, 107, 0.3);
+            --cyan:       #00d4ff;
+            --green:      #00e676;
+            --bg-deep:    #04060f;
+            --bg-card:    rgba(255, 255, 255, 0.04);
+            --border:     rgba(255, 255, 255, 0.07);
+            --text:       #e2e8f0;
+            --text-dim:   #64748b;
+            --text-muted: #2d3748;
+            --radius:     16px;
+            --radius-sm:  10px;
+        }
 
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-deep);
+            color: var(--text);
             min-height: 100vh;
-            color: #e0e0e0;
-            padding: 20px;
+            overflow-x: hidden;
         }
 
-        .container {
-            max-width: 900px;
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                radial-gradient(ellipse 70% 55% at 85% -5%,  rgba(255,61,107,0.07) 0%, transparent 60%),
+                radial-gradient(ellipse 55% 45% at 10% 110%, rgba(0,212,255,0.06)  0%, transparent 60%),
+                linear-gradient(180deg, #04060f 0%, #080b1a 50%, #040610 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(255,61,107,0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255,61,107,0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           TOPBAR
+           ═══════════════════════════════════════════════════════════ */
+        .topbar {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 32px;
+            background: rgba(4, 6, 15, 0.88);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .topbar-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 1rem;
+            color: var(--red);
+            letter-spacing: 0.02em;
+        }
+
+        .status-dot-bar {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #555;
+            flex-shrink: 0;
+            transition: background 0.4s, box-shadow 0.4s;
+        }
+
+        .status-dot-bar.online {
+            background: var(--green);
+            box-shadow: 0 0 10px var(--green);
+            animation: pulse-dot 2s infinite;
+        }
+
+        @keyframes pulse-dot {
+            0%,100% { opacity: 1; transform: scale(1);    }
+            50%      { opacity: 0.5; transform: scale(0.75); }
+        }
+
+        .topbar-nav { display: flex; gap: 6px; }
+
+        .nav-link {
+            padding: 6px 16px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            color: var(--text-dim);
+            transition: all 0.2s;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            background: var(--red-dim);
+            color: var(--red);
+        }
+
+        .topbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .topbar-badge {
+            font-size: 0.75rem;
+            padding: 4px 12px;
+            background: var(--red-dim);
+            color: var(--red);
+            border: 1px solid rgba(255,61,107,0.2);
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        #topbarStatus {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           PAGE
+           ═══════════════════════════════════════════════════════════ */
+        .page {
+            position: relative;
+            z-index: 1;
+            max-width: 960px;
             margin: 0 auto;
+            padding: 40px 20px 80px;
         }
 
-        /* ---------- HLAVIČKA ---------- */
-        .header {
+        /* ═══════════════════════════════════════════════════════════
+           PAGE HEADER
+           ═══════════════════════════════════════════════════════════ */
+        .page-header {
             text-align: center;
-            padding: 30px 0;
+            margin-bottom: 44px;
         }
 
-        .header h1 {
-            font-size: 2em;
-            color: #e94560;
+        .eyebrow {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            font-weight: 700;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--red);
+            margin-bottom: 12px;
+        }
+
+        .eyebrow::before, .eyebrow::after {
+            content: '';
+            width: 26px;
+            height: 1px;
+            background: var(--red);
+            opacity: 0.4;
+        }
+
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #f1f5f9 30%, var(--red) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1.15;
             margin-bottom: 10px;
         }
 
-        .badge {
-            display: inline-block;
+        .page-header .sub { color: var(--text-dim); font-size: 0.95rem; }
+
+        .tag-row {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 18px;
+        }
+
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
             padding: 4px 12px;
             border-radius: 20px;
-            font-size: 0.8em;
-            margin: 4px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid var(--border);
+            color: var(--text-dim);
         }
 
-        .badge-red {
-            background: rgba(233, 69, 96, 0.15);
-            color: #e94560;
-            border: 1px solid rgba(233, 69, 96, 0.3);
-        }
+        .tag-dot-r { width: 5px; height: 5px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
+        .tag-dot-g { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulse-dot 2s infinite; }
 
-        .badge-green {
-            background: rgba(0, 200, 83, 0.15);
-            color: #00c853;
-            border: 1px solid rgba(0, 200, 83, 0.3);
-        }
-
-        /* ---------- STATUS BAR ---------- */
-        /* Zobrazuje stav pripojenia k backendu — živá ukážka komunikácie */
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 16px 24px;
-            margin-bottom: 24px;
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            display: inline-block;
-            margin-right: 8px;
-        }
-
-        .status-dot.online {
-            background: #00c853;
-            box-shadow: 0 0 10px rgba(0, 200, 83, 0.5);
-            animation: pulse 2s infinite;
-        }
-
-        .status-dot.offline {
-            background: #ff5252;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        /* ---------- KARTY ---------- */
-        .card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 28px;
-            margin-bottom: 24px;
-            backdrop-filter: blur(10px);
-        }
-
-        .card h2 {
-            color: #e94560;
-            margin-bottom: 16px;
-            font-size: 1.3em;
-        }
-
-        /* ---------- POSLEDNÝ VÝPOČET (veľký display) ---------- */
-        .big-display {
-            text-align: center;
-            padding: 30px;
-        }
-
-        .big-number {
-            font-size: 4em;
-            font-weight: 700;
-            color: #e94560;
-            text-shadow: 0 0 30px rgba(233, 69, 96, 0.3);
-        }
-
-        .big-detail {
-            color: #8892b0;
-            font-size: 1.1em;
-            margin-top: 10px;
-        }
-
-        .big-time {
-            color: #555;
-            font-size: 0.85em;
-            margin-top: 8px;
-        }
-
-        /* ---------- ŠTATISTIKY GRID ---------- */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 16px;
-            margin-top: 16px;
-        }
-
-        .stat-card {
-            background: rgba(255, 255, 255, 0.03);
-            border: 1px solid rgba(255, 255, 255, 0.08);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-        }
-
-        .stat-value {
-            font-size: 1.8em;
-            font-weight: 700;
-            color: #e94560;
-        }
-
-        .stat-label {
-            color: #8892b0;
-            font-size: 0.8em;
-            margin-top: 4px;
-            text-transform: uppercase;
-        }
-
-        /* ---------- LIVE FEED ---------- */
-        .live-feed {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        .feed-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px 16px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-            transition: background 0.3s;
-        }
-
-        .feed-item:hover {
-            background: rgba(255, 255, 255, 0.03);
-        }
-
-        .feed-item.new {
-            animation: highlightNew 2s ease;
-        }
-
-        @keyframes highlightNew {
-            from { background: rgba(233, 69, 96, 0.2); }
-            to { background: transparent; }
-        }
-
-        .feed-id {
-            color: #e94560;
-            font-weight: 700;
-            font-size: 0.85em;
-            min-width: 50px;
-        }
-
-        .feed-calc {
-            color: #e0e0e0;
-            flex-grow: 1;
-            padding: 0 15px;
-        }
-
-        .feed-result {
-            color: #e94560;
-            font-weight: 700;
-            font-size: 1.1em;
-            min-width: 80px;
-            text-align: right;
-        }
-
-        .feed-time {
-            color: #555;
-            font-size: 0.75em;
-            min-width: 130px;
-            text-align: right;
-        }
-
-        /* ---------- KONFIGURÁCIA PANEL ---------- */
+        /* ═══════════════════════════════════════════════════════════
+           CONFIG PANEL
+           ═══════════════════════════════════════════════════════════ */
         .config-panel {
-            background: rgba(233, 69, 96, 0.08);
-            border: 1px solid rgba(233, 69, 96, 0.2);
-            border-radius: 12px;
-            padding: 20px;
+            padding: 18px 22px;
+            background: rgba(255,61,107,0.05);
+            border: 1px solid rgba(255,61,107,0.16);
+            border-radius: var(--radius-sm);
             margin-bottom: 24px;
         }
 
         .config-panel h3 {
-            color: #e94560;
-            margin-bottom: 10px;
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--red);
+            margin-bottom: 6px;
+        }
+
+        .config-panel p {
+            font-size: 0.82rem;
+            color: var(--text-dim);
+            margin-bottom: 12px;
+            line-height: 1.6;
         }
 
         .config-panel code {
-            background: rgba(0, 0, 0, 0.3);
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-family: 'Courier New', monospace;
-            color: #e94560;
-            font-size: 0.9em;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82em;
+            background: rgba(0,0,0,0.35);
+            color: var(--red);
+            padding: 1px 7px;
+            border-radius: 5px;
         }
 
-        .config-input {
+        .config-row {
             display: flex;
             gap: 10px;
-            margin-top: 12px;
-            align-items: center;
         }
 
-        .config-input input {
-            flex-grow: 1;
+        .config-row input {
+            flex: 1;
             padding: 10px 14px;
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
             color: #fff;
-            font-family: 'Courier New', monospace;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.2s;
         }
 
-        .config-input button {
-            padding: 10px 20px;
-            background: #e94560;
+        .config-row input:focus { border-color: var(--red); }
+
+        .btn-connect {
+            padding: 10px 22px;
+            background: var(--red);
             color: #fff;
             border: none;
-            border-radius: 8px;
+            border-radius: var(--radius-sm);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
+            font-weight: 700;
             cursor: pointer;
+            transition: transform 0.18s, box-shadow 0.18s;
+            white-space: nowrap;
+        }
+
+        .btn-connect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 18px rgba(255,61,107,0.3);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           STATUS BAR
+           ═══════════════════════════════════════════════════════════ */
+        .status-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            margin-bottom: 24px;
+        }
+
+        .status-left {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875rem;
+        }
+
+        .conn-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #555;
+            flex-shrink: 0;
+            transition: background 0.4s, box-shadow 0.4s;
+        }
+
+        .conn-dot.online {
+            background: var(--green);
+            box-shadow: 0 0 10px rgba(0,230,118,0.5);
+            animation: pulse-dot 2s infinite;
+        }
+
+        #statusText { font-weight: 500; }
+
+        .status-right {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           CARD
+           ═══════════════════════════════════════════════════════════ */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px;
+            margin-bottom: 22px;
+            backdrop-filter: blur(12px);
+            transition: border-color 0.3s;
+        }
+
+        .card:hover { border-color: rgba(255,61,107,0.12); }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 22px;
+            padding-bottom: 18px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--red-dim);
+            border: 1px solid rgba(255,61,107,0.18);
+            border-radius: 11px;
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        .card-header h2 {
+            font-size: 1.05rem;
+            font-weight: 700;
+            color: #f1f5f9;
+        }
+
+        .card-header p {
+            font-size: 0.78rem;
+            color: var(--text-dim);
+            margin-top: 2px;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           BIG RESULT DISPLAY
+           ═══════════════════════════════════════════════════════════ */
+        .big-display {
+            text-align: center;
+            padding: 28px 20px;
+        }
+
+        .big-number {
+            font-size: 4.5rem;
+            font-weight: 800;
+            letter-spacing: -0.04em;
+            background: linear-gradient(135deg, #fff 20%, var(--red) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            line-height: 1;
+        }
+
+        .big-detail {
+            margin-top: 10px;
+            font-size: 1.05rem;
+            font-weight: 500;
+            color: #94a3b8;
+        }
+
+        .big-time {
+            margin-top: 6px;
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           STATS GRID
+           ═══════════════════════════════════════════════════════════ */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 14px;
+        }
+
+        .stat-card {
+            padding: 20px 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            text-align: center;
+            transition: border-color 0.3s, background 0.3s;
+        }
+
+        .stat-card:hover {
+            background: rgba(255,61,107,0.04);
+            border-color: rgba(255,61,107,0.2);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            color: var(--red);
+            line-height: 1;
+        }
+
+        .stat-label {
+            margin-top: 6px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.07em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           LIVE FEED
+           ═══════════════════════════════════════════════════════════ */
+        .feed-scroll {
+            max-height: 380px;
+            overflow-y: auto;
+        }
+
+        .feed-scroll::-webkit-scrollbar { width: 4px; }
+        .feed-scroll::-webkit-scrollbar-track { background: transparent; }
+        .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,61,107,0.25); border-radius: 4px; }
+
+        .feed-item {
+            display: grid;
+            grid-template-columns: 52px 1fr auto auto;
+            align-items: center;
+            gap: 12px;
+            padding: 11px 14px;
+            border-bottom: 1px solid var(--border);
+            transition: background 0.2s;
+        }
+
+        .feed-item:last-child { border-bottom: none; }
+        .feed-item:hover { background: rgba(255,255,255,0.02); }
+
+        .feed-item.flash {
+            animation: flash-in 1.8s ease;
+        }
+
+        @keyframes flash-in {
+            0%   { background: rgba(255,61,107,0.18); }
+            100% { background: transparent; }
+        }
+
+        .feed-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--red);
+        }
+
+        .feed-expr { font-size: 0.87rem; color: #cbd5e1; }
+
+        .feed-res {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--red);
+            text-align: right;
+        }
+
+        .feed-time {
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            text-align: right;
+            white-space: nowrap;
+        }
+
+        /* ═══════════════════════════════════════════════════════════
+           PREVODY TABLE
+           ═══════════════════════════════════════════════════════════ */
+        .table-wrap {
+            overflow-x: auto;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+        }
+
+        table.ptable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.875rem;
+        }
+
+        .ptable thead tr { background: rgba(255,61,107,0.05); }
+
+        .ptable th {
+            padding: 10px 15px;
+            text-align: left;
+            font-size: 0.7rem;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--red);
+            white-space: nowrap;
+        }
+
+        .ptable td {
+            padding: 10px 15px;
+            border-top: 1px solid var(--border);
+            color: #94a3b8;
+            white-space: nowrap;
+        }
+
+        .ptable tr:hover td { background: rgba(255,255,255,0.02); color: #cbd5e1; }
+
+        .ptable .mono {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--red);
             font-weight: 600;
         }
 
-        .config-input button:hover {
-            background: #c73e54;
-        }
-
-        /* ---------- EMPTY STATE ---------- */
-        .empty-state {
+        /* ═══════════════════════════════════════════════════════════
+           EMPTY STATE
+           ═══════════════════════════════════════════════════════════ */
+        .empty {
             text-align: center;
-            padding: 40px;
-            color: #8892b0;
+            padding: 40px 20px;
+            color: var(--text-dim);
         }
 
-        .empty-state .emoji {
-            font-size: 3em;
-            margin-bottom: 15px;
+        .empty-icon { font-size: 2.4rem; margin-bottom: 12px; opacity: 0.6; }
+        .empty p { font-size: 0.875rem; }
+
+        /* ═══════════════════════════════════════════════════════════
+           SPINNER
+           ═══════════════════════════════════════════════════════════ */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.25);
+            border-top-color: var(--red);
+            border-radius: 50%;
+            animation: spin 0.65s linear infinite;
+            vertical-align: middle;
         }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* refresh chip */
+        .refresh-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            padding: 3px 10px;
+            background: rgba(0,230,118,0.08);
+            border: 1px solid rgba(0,230,118,0.18);
+            border-radius: 20px;
+            color: var(--green);
+        }
+
+        .refresh-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s infinite; }
     </style>
 </head>
 <body>
-    <div class="container">
 
-        <!-- ═══════════════════════════════════════════════════
-             HLAVIČKA
-             ═══════════════════════════════════════════════════ -->
-        <div class="header">
-            <h1>📡 IoT Klient Dashboard</h1>
-            <p style="color: #8892b0;">
-                Frontend B — Klientský pohľad (druhá doména)
-            </p>
-            <div style="margin-top: 12px;">
-                <span class="badge badge-red">Len čítanie</span>
-                <span class="badge badge-red">CORS</span>
-                <span class="badge badge-green">Auto-refresh 5s</span>
-            </div>
+    <!-- TOPBAR -->
+    <nav class="topbar">
+        <div class="topbar-logo">
+            <span class="status-dot-bar" id="topbarDot"></span>
+            IoT Meteorologická Stanica
         </div>
+        <div class="topbar-nav">
+            <a href="/" class="nav-link">Admin</a>
+            <a href="/klient" class="nav-link active">Klient</a>
+        </div>
+        <div class="topbar-right">
+            <span id="topbarStatus" style="font-size:.78rem;color:var(--text-dim);">Nepripojené</span>
+            <span class="topbar-badge">Frontend B</span>
+        </div>
+    </nav>
 
-        <!-- ═══════════════════════════════════════════════════
-             KONFIGURÁCIA BACKENDU
-             ═══════════════════════════════════════════════════
-             Študent tu zadá URL svojho backendu.
-             V reálnom nasadení by toto bolo napevno v kóde.
-             ═══════════════════════════════════════════════════ -->
+    <main class="page">
+
+        <!-- PAGE HEADER -->
+        <header class="page-header">
+            <div class="eyebrow">IoT Klientský pohľad</div>
+            <h1>Live Dashboard</h1>
+            <p class="sub">Frontend B — Čítanie dát z backendu cez API</p>
+            <div class="tag-row">
+                <span class="tag"><span class="tag-dot-r"></span>Len čítanie</span>
+                <span class="tag"><span class="tag-dot-r"></span>CORS</span>
+                <span class="tag"><span class="tag-dot-g"></span>Auto-refresh 5s</span>
+            </div>
+        </header>
+
+        <!-- CONFIG PANEL -->
         <div class="config-panel">
             <h3>⚙️ Pripojenie na backend</h3>
-            <p style="color: #8892b0; font-size: 0.9em;">
-                Zadajte URL backendu, odkiaľ sa budú načítavať dáta.
-                Backend musí mať povolený <code>CORS</code>, inak komunikácia zlyhá!
+            <p>
+                Zadajte URL backendu. Backend musí mať povolený <code>CORS</code>, inak komunikácia zlyhá.
+                Lokálne: <code>http://localhost:5000</code>
             </p>
-            <div class="config-input">
+            <div class="config-row">
                 <input type="text" id="backendUrl"
-                       placeholder="http://localhost:5000"
+                       placeholder="http://localhost:5000  alebo  https://tvoj-backend.azurewebsites.net"
                        value="">
-                <button onclick="pripojNaBackend()">Pripojiť</button>
+                <button class="btn-connect" onclick="pripojNaBackend()">Pripojiť</button>
             </div>
-            <p style="color: #555; font-size: 0.8em; margin-top: 8px;">
-                Lokálne: <code>http://localhost:5000</code> |
-                Azure: <code>http://tvoj-backend.azurewebsites.net</code>
-            </p>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════
-             STATUS BAR — Stav pripojenia
-             ═══════════════════════════════════════════════════ -->
+        <!-- STATUS BAR -->
         <div class="status-bar">
-            <div>
-                <span class="status-dot offline" id="statusDot"></span>
+            <div class="status-left">
+                <span class="conn-dot" id="statusDot"></span>
                 <span id="statusText">Nepripojené</span>
             </div>
-            <div style="color: #8892b0; font-size: 0.85em;">
-                Posledná aktualizácia: <span id="lastUpdate">—</span>
+            <div class="status-right">
+                Posledná aktualizácia: <strong id="lastUpdate">—</strong>
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════
-             POSLEDNÝ VÝPOČET (veľký display)
-             ═══════════════════════════════════════════════════ -->
+        <!-- ── KARTA: POSLEDNÝ VÝPOČET ── -->
         <div class="card">
-            <h2>🎯 Posledný výpočet</h2>
-            <div class="big-display" id="poslednyDisplay">
-                <div class="empty-state">
-                    <div class="emoji">📡</div>
+            <div class="card-header">
+                <div class="card-icon">🎯</div>
+                <div>
+                    <h2>Posledný výpočet</h2>
+                    <p>Najnovší záznam z databázy</p>
+                </div>
+            </div>
+
+            <div id="poslednyDisplay">
+                <div class="empty">
+                    <div class="empty-icon">📡</div>
                     <p>Pripojte sa na backend pre zobrazenie dát</p>
                 </div>
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════
-             ŠTATISTIKY
-             ═══════════════════════════════════════════════════ -->
+        <!-- ── KARTA: ŠTATISTIKY ── -->
         <div class="card">
-            <h2>📈 Štatistiky</h2>
-            <div class="stats-grid" id="statsGrid">
+            <div class="card-header">
+                <div class="card-icon">📈</div>
+                <div>
+                    <h2>Štatistiky</h2>
+                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/statistiky</code></p>
+                </div>
+            </div>
+
+            <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-value" id="statPocet">—</div>
                     <div class="stat-label">Celkom výpočtov</div>
@@ -395,309 +730,187 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════
-             LIVE FEED — Všetky výpočty
-             ═══════════════════════════════════════════════════
-             Automaticky sa obnovuje každých 5 sekúnd.
-             Simuluje "live" dáta z IoT senzorov.
-             ═══════════════════════════════════════════════════ -->
+        <!-- ── KARTA: LIVE FEED ── -->
         <div class="card">
-            <h2>📋 Live Feed</h2>
-            <p style="color: #8892b0; margin-bottom: 15px; font-size: 0.9em;">
-                Dáta z API endpointu <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #e94560;">/api/historia</code>
-                — automatická obnova každých 5 sekúnd
-            </p>
-            <div class="live-feed" id="liveFeed">
-                <div class="empty-state">
+            <div class="card-header">
+                <div class="card-icon">📋</div>
+                <div>
+                    <h2>Live Feed</h2>
+                    <p>
+                        Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/historia</code>
+                        &nbsp;
+                        <span class="refresh-chip"><span class="dot"></span> 5s refresh</span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="feed-scroll" id="liveFeed">
+                <div class="empty">
                     <p>Čakám na pripojenie...</p>
                 </div>
             </div>
         </div>
 
-        <!-- ═══════════════════════════════════════════════════
-             HISTÓRIA PREVODOV JEDNOTIEK
-             ═══════════════════════════════════════════════════
-             Zobrazuje záznamy z /api/historia-prevodov.
-             Dáta sa načítavajú cez fetch() každých 5 sekúnd.
-             ═══════════════════════════════════════════════════ -->
+        <!-- ── KARTA: HISTÓRIA PREVODOV ── -->
         <div class="card">
-            <h2>🌡️ História prevodov meteorologických jednotiek</h2>
-            <p style="color: #8892b0; margin-bottom: 15px; font-size: 0.9em;">
-                Dáta z API endpointu
-                <code style="background: rgba(0,0,0,0.3); padding: 2px 6px; border-radius: 4px; color: #e94560;">/api/historia-prevodov</code>
-                — automatická obnova každých 5 sekúnd
-            </p>
-            <!-- Tabuľka prevodov: Vstup | Typ | Výsledok | Čas -->
-            <table class="history-table" id="tabPrevody" style="width:100%; border-collapse:collapse;">
-                <thead>
-                    <tr>
-                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Vstup</th>
-                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Typ prevodu</th>
-                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Výsledok</th>
-                        <th style="background:rgba(233,69,96,0.15);color:#e94560;padding:10px;text-align:left;font-size:0.85em;text-transform:uppercase;">Čas</th>
-                    </tr>
-                </thead>
-                <tbody id="tabelaPrevodovBody">
-                    <tr>
-                        <td colspan="4" style="padding:20px;text-align:center;color:#8892b0;">
-                            Čakám na dáta...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+            <div class="card-header">
+                <div class="card-icon">🌡️</div>
+                <div>
+                    <h2>História prevodov meteorologických jednotiek</h2>
+                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/historia-prevodov</code></p>
+                </div>
+            </div>
+
+            <div id="prevodyWrap">
+                <div class="empty"><p>Čakám na dáta...</p></div>
+            </div>
         </div>
 
-    </div>
+    </main>
 
-    <!-- ═══════════════════════════════════════════════════════════════════
-         JAVASCRIPT — Komunikácia s backendom
-         ═══════════════════════════════════════════════════════════════════
-         KĽÚČOVÉ KONCEPTY PRE ŠTUDENTOV:
-
-         1. fetch() API
-            - Moderný spôsob posielania HTTP requestov z JavaScriptu
-            - Vracia Promise (asynchrónny výsledok)
-            - Nahradzuje starší XMLHttpRequest (XHR)
-
-         2. CORS (Cross-Origin Resource Sharing)
-            - Prehliadač blokuje requesty na INÚ doménu (bezpečnosť)
-            - Backend musí poslať hlavičku: Access-Control-Allow-Origin
-            - flask-cors to rieši automaticky
-
-         3. Polling (pravidelné dopytovanie)
-            - setInterval() = opakuj funkciu každých X milisekúnd
-            - Alternatíva: WebSocket (trvalé spojenie) — pokročilejšie
-         ═══════════════════════════════════════════════════════════════════ -->
     <script>
-        // ──────────────────────────────────────────────────────────────
-        // GLOBÁLNE PREMENNÉ
-        // ──────────────────────────────────────────────────────────────
-        let backendUrl = "";          // URL backendu (nastaví sa po pripojení)
-        let refreshInterval = null;    // ID intervalu (na zastavenie)
-        let poslednePocetZaznamov = 0; // Na detekciu nových záznamov
+        // ── globals ──────────────────────────────────────────────────
+        let backendUrl = "";
+        let refreshInterval = null;
+        let lastFeedCount = 0;
 
-        // ──────────────────────────────────────────────────────────────
-        // PRIPOJENIE NA BACKEND
-        // ──────────────────────────────────────────────────────────────
+        // ── pripojenie ───────────────────────────────────────────────
         function pripojNaBackend() {
             let url = document.getElementById("backendUrl").value.trim();
-
-            // Predvolená hodnota
             if (!url) url = window.location.origin;
-
-            // Odstránime koncové lomítko
             backendUrl = url.replace(/\/$/, "");
 
-            console.log("🔗 Pripájam sa na:", backendUrl);
-
-            // Zastavíme predchádzajúci interval (ak existuje)
             if (refreshInterval) clearInterval(refreshInterval);
-
-            // Prvé načítanie dát
             nacitajVsetko();
-
-            // Nastavíme automatickú obnovu každých 5 sekúnd (5000 ms)
-            // Toto je "polling" — najprostejší spôsob live dát
             refreshInterval = setInterval(nacitajVsetko, 5000);
         }
 
-        // ──────────────────────────────────────────────────────────────
-        // NAČÍTANIE VŠETKÝCH DÁT
-        // ──────────────────────────────────────────────────────────────
+        // ── nacítaj všetko ──────────────────────────────────────────
         async function nacitajVsetko() {
             try {
-                // Paralelné načítanie z dvoch endpointov naraz
-                // Promise.all() = počká, kým sa dokončia OBE operácie
-                const [historiaRes, statsRes] = await Promise.all([
+                const [histRes, statsRes, prevRes] = await Promise.all([
                     fetch(`${backendUrl}/api/historia`),
-                    fetch(`${backendUrl}/api/statistiky`)
+                    fetch(`${backendUrl}/api/statistiky`),
+                    fetch(`${backendUrl}/api/historia-prevodov`)
                 ]);
 
-                // ─── CORS CHECK ───
-                // Ak fetch() uspeje, znamená to, že CORS je správne nastavený.
-                // Ak CORS nie je povolený, fetch() vyhodí chybu → catch blok.
+                const historia = await histRes.json();
+                const stats    = await statsRes.json();
+                const prevody  = await prevRes.json();
 
-                const historia = await historiaRes.json();
-                const stats = await statsRes.json();
-
-                // Aktualizujeme UI
                 aktualizujStatus(true);
                 zobrazPosledny(historia);
                 zobrazStatistiky(stats);
                 zobrazLiveFeed(historia);
-
-            } catch (error) {
-                console.error("❌ Chyba pri načítaní dát:", error);
-                aktualizujStatus(false);
-
-                // Typická chyba pri CORS probléme:
-                // "TypeError: Failed to fetch" alebo "CORS policy" v konzole
-            }
-        }
-
-        // ──────────────────────────────────────────────────────────────
-        // AKTUALIZÁCIA STAVU PRIPOJENIA
-        // ──────────────────────────────────────────────────────────────
-        function aktualizujStatus(jeOnline) {
-            const dot = document.getElementById("statusDot");
-            const text = document.getElementById("statusText");
-            const update = document.getElementById("lastUpdate");
-
-            if (jeOnline) {
-                dot.className = "status-dot online";
-                text.textContent = `Pripojené na ${backendUrl}`;
-                update.textContent = new Date().toLocaleTimeString("sk-SK");
-            } else {
-                dot.className = "status-dot offline";
-                text.textContent = "Chyba pripojenia (skontrolujte CORS a URL)";
-            }
-        }
-
-        // ──────────────────────────────────────────────────────────────
-        // ZOBRAZENIE POSLEDNÉHO VÝPOČTU
-        // ──────────────────────────────────────────────────────────────
-        function zobrazPosledny(historia) {
-            const display = document.getElementById("poslednyDisplay");
-
-            if (!historia || historia.length === 0) {
-                display.innerHTML = `
-                    <div class="empty-state">
-                        <div class="emoji">📭</div>
-                        <p>Zatiaľ žiadne výpočty. Zadajte niečo na Frontende A!</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const posledny = historia[0]; // Najnovší (ORDER BY DESC)
-            const symboly = { plus: "+", minus: "−", krat: "×", deleno: "÷" };
-            const sym = symboly[posledny.operacia] || "?";
-
-            display.innerHTML = `
-                <div class="big-number">${posledny.vysledok}</div>
-                <div class="big-detail">${posledny.cislo1} ${sym} ${posledny.cislo2}</div>
-                <div class="big-time">ID: #${posledny.id} | ${posledny.cas}</div>
-            `;
-        }
-
-        // ──────────────────────────────────────────────────────────────
-        // ZOBRAZENIE ŠTATISTÍK
-        // ──────────────────────────────────────────────────────────────
-        function zobrazStatistiky(stats) {
-            document.getElementById("statPocet").textContent = stats.celkovy_pocet || 0;
-            document.getElementById("statPriemer").textContent =
-                stats.priemerny_vysledok ? stats.priemerny_vysledok.toFixed(2) : "0";
-            document.getElementById("statPlus").textContent =
-                stats.podla_operacie?.plus || 0;
-            document.getElementById("statMinus").textContent =
-                stats.podla_operacie?.minus || 0;
-        }
-
-        // ──────────────────────────────────────────────────────────────
-        // ZOBRAZENIE LIVE FEEDU
-        // ──────────────────────────────────────────────────────────────
-        function zobrazLiveFeed(historia) {
-            const feed = document.getElementById("liveFeed");
-
-            if (!historia || historia.length === 0) {
-                feed.innerHTML = `
-                    <div class="empty-state">
-                        <p>Čakám na dáta...</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const symboly = { plus: "+", minus: "−", krat: "×", deleno: "÷" };
-            const jeNovy = historia.length > poslednePocetZaznamov;
-            poslednePocetZaznamov = historia.length;
-
-            let html = "";
-            historia.forEach((item, index) => {
-                const sym = symboly[item.operacia] || "?";
-                const novyClass = (index === 0 && jeNovy) ? "new" : "";
-
-                html += `
-                    <div class="feed-item ${novyClass}">
-                        <span class="feed-id">#${item.id}</span>
-                        <span class="feed-calc">${item.cislo1} ${sym} ${item.cislo2}</span>
-                        <span class="feed-result">${item.vysledok}</span>
-                        <span class="feed-time">${item.cas}</span>
-                    </div>
-                `;
-            });
-
-            feed.innerHTML = html;
-        }
-
-        // ──────────────────────────────────────────────────────────────
-        // NAČÍTANIE HISTÓRIE PREVODOV JEDNOTIEK
-        // ──────────────────────────────────────────────────────────────
-        // Voláme endpoint /api/historia-prevodov cez fetch().
-        // Dáta sa obnovia každých 5 sekúnd (polling — rovnaký princíp
-        // ako pri hlavnej histórii výpočtov).
-
-        async function nacitajPrevody() {
-            try {
-                // GET request na /api/historia-prevodov
-                const url = `${backendUrl || window.location.origin}/api/historia-prevodov`;
-                const r = await fetch(url);
-                const data = await r.json();
-
-                const tbody = document.getElementById("tabelaPrevodovBody");
-
-                if (!data || data.length === 0) {
-                    // Prázdna história — zobrazte informatívny riadok
-                    tbody.innerHTML = `
-                        <tr>
-                            <td colspan="4" style="padding:20px;text-align:center;color:#8892b0;">
-                                Zatiaľ žiadne prevody. Použite prevodník na Frontende A!
-                            </td>
-                        </tr>
-                    `;
-                    return;
-                }
-
-                // Zostrojíme riadky tabuľky z JSON dát (najnovší prevod navrchu)
-                const riadky = [...data].reverse().map(p => `
-                    <tr>
-                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);">
-                            ${p.hodnota}
-                        </td>
-                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#8892b0;">
-                            ${p.typ}
-                        </td>
-                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#e94560;font-weight:700;">
-                            ${p.vysledok}
-                        </td>
-                        <td style="padding:10px;border-bottom:1px solid rgba(255,255,255,0.05);color:#555;font-size:0.8em;">
-                            ${p.cas}
-                        </td>
-                    </tr>
-                `).join("");
-
-                tbody.innerHTML = riadky;
+                zobrazPrevody(prevody);
 
             } catch (err) {
-                // Ak backend offline, ticho ignorujeme (nechceme pokaziť iné karty)
-                console.warn("⚠️ Nepodarilo sa načítať históriu prevodov:", err);
+                console.error("❌ Chyba:", err);
+                aktualizujStatus(false);
             }
         }
 
-        // Automatická obnova histórie prevodov každých 5 sekúnd
-        setInterval(nacitajPrevody, 5000);
+        // ── status ───────────────────────────────────────────────────
+        function aktualizujStatus(online) {
+            const dot    = document.getElementById("statusDot");
+            const tbDot  = document.getElementById("topbarDot");
+            const text   = document.getElementById("statusText");
+            const tbStat = document.getElementById("topbarStatus");
+            const update = document.getElementById("lastUpdate");
 
-        // ──────────────────────────────────────────────────────────────
-        // INICIALIZÁCIA
-        // ──────────────────────────────────────────────────────────────
-        // Predvyplníme URL pole aktuálnou doménou
-        document.getElementById("backendUrl").value = window.location.origin;
+            if (online) {
+                dot.className   = "conn-dot online";
+                tbDot.className = "status-dot-bar online";
+                text.textContent   = "Pripojené — " + backendUrl;
+                tbStat.textContent = "Online";
+                tbStat.style.color = "var(--green)";
+                update.textContent = new Date().toLocaleTimeString("sk-SK");
+            } else {
+                dot.className   = "conn-dot";
+                tbDot.className = "status-dot-bar";
+                text.textContent   = "Chyba pripojenia — skontrolujte URL a CORS";
+                tbStat.textContent = "Offline";
+                tbStat.style.color = "#f87171";
+            }
+        }
 
-        // Automatické pripojenie (ak sme na rovnakej doméne)
-        pripojNaBackend();
+        // ── posledný výpočet ─────────────────────────────────────────
+        function zobrazPosledny(historia) {
+            const el = document.getElementById("poslednyDisplay");
+            if (!historia || !historia.length) {
+                el.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Zatiaľ žiadne výpočty. Zadajte niečo na Frontende A!</p></div>`;
+                return;
+            }
+            const p   = historia[0];
+            const sym = { plus:"+", minus:"−", krat:"×", deleno:"÷" }[p.operacia] || "?";
+            el.innerHTML = `
+                <div class="big-display">
+                    <div class="big-number">${p.vysledok}</div>
+                    <div class="big-detail">${p.cislo1} ${sym} ${p.cislo2}</div>
+                    <div class="big-time">ID: #${p.id} &nbsp;·&nbsp; ${p.cas}</div>
+                </div>`;
+        }
 
-        // Načítame aj históriu prevodov hneď pri štarte
-        nacitajPrevody();
+        // ── štatistiky ───────────────────────────────────────────────
+        function zobrazStatistiky(stats) {
+            document.getElementById("statPocet").textContent  = stats.celkovy_pocet ?? 0;
+            document.getElementById("statPriemer").textContent =
+                stats.priemerny_vysledok ? (+stats.priemerny_vysledok).toFixed(2) : "0";
+            document.getElementById("statPlus").textContent   = stats.podla_operacie?.plus  ?? 0;
+            document.getElementById("statMinus").textContent  = stats.podla_operacie?.minus ?? 0;
+        }
+
+        // ── live feed ────────────────────────────────────────────────
+        function zobrazLiveFeed(historia) {
+            const feed = document.getElementById("liveFeed");
+            if (!historia || !historia.length) {
+                feed.innerHTML = `<div class="empty"><p>\u017diadne z\u00e1znamy.</p></div>`;
+                lastFeedCount  = 0;
+                return;
+            }
+            const isNew = historia.length > lastFeedCount;
+            lastFeedCount = historia.length;
+            const sym  = { plus:"+", minus:"\u2212", krat:"\u00d7", deleno:"\u00f7" };
+            const rows = historia.map((r, i) => `
+                <div class="feed-item${i === 0 && isNew ? ' flash' : ''}">
+                    <span class="feed-id">#${r.id}</span>
+                    <span class="feed-expr">${r.cislo1} ${sym[r.operacia]||"?"} ${r.cislo2}</span>
+                    <span class="feed-res">${r.vysledok}</span>
+                    <span class="feed-time">${r.cas}</span>
+                </div>`).join("");
+            feed.innerHTML = rows;
+        }
+
+        function zobrazPrevody(prevody) {
+            const wrap = document.getElementById("prevodyWrap");
+            if (\!prevody || \!prevody.length) {
+                wrap.innerHTML = `<div class="empty"><p>\u017diadne z\u00e1znamy prevodov.</p></div>`;
+                return;
+            }
+            const typLabels = { c_to_f:"\u00b0C \u2192 \u00b0F", hpa_to_mmhg:"hPa \u2192 mmHg", ms_to_kmh:"m/s \u2192 km/h" };
+            const rows = [...prevody].reverse().map(r => `
+                <tr>
+                    <td class="mono">${r.hodnota}</td>
+                    <td>${typLabels[r.typ] || r.typ}</td>
+                    <td class="mono">${r.vysledok}</td>
+                    <td>${r.cas}</td>
+                </tr>`).join("");
+            wrap.innerHTML = `
+                <div class="table-wrap">
+                    <table class="ptable">
+                        <thead><tr>
+                            <th>Vstup</th><th>Typ prevodu</th>
+                            <th>V\u00fdsledok</th><th>\u010cas</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>`;
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("backendUrl").value = window.location.origin;
+            pripojNaBackend();
+        });
     </script>
 </body>
 </html>

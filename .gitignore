@@ -17,6 +17,10 @@ prevody.json
 .vscode/
 .idea/
 
+ GITHUB_COMMIT_GUIDE.md
+*.zip
+*.docx
+
 # OS
 .DS_Store
 Thumbs.db

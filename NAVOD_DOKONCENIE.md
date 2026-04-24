@@ -211,7 +211,7 @@ templates/   (celý priečinok)
 
 ## KROK 7 — Skontroluj, že Azure funguje
 
-Otvor svoju Azure URL (napr. `https://iot-backend-stefan.azurewebsites.net`) a otestuj:
+Otvor svoju Azure URL (napr. `  `) a otestuj:
 
 | Čo testuješ | URL |
 |-------------|-----|
