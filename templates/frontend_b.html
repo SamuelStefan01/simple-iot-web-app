@@ -774,14 +774,37 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
         let refreshInterval = null;
         let lastFeedCount = 0;
 
+        // ── pomocná funkcia: fetch s timeoutom ─────────────────────
+        function fetchWithTimeout(url, ms = 10000) {
+            const controller = new AbortController();
+            const timer = setTimeout(() => controller.abort(), ms);
+            return fetch(url, { signal: controller.signal })
+                .finally(() => clearTimeout(timer));
+        }
+
         // ── pripojenie ───────────────────────────────────────────────
-        function pripojNaBackend() {
+        async function pripojNaBackend() {
             let url = document.getElementById("backendUrl").value.trim();
             if (!url) url = window.location.origin;
             backendUrl = url.replace(/\/$/, "");
 
+            // loading stav tlačidla
+            const btn = document.querySelector(".btn-connect");
+            btn.textContent = "Pripájam...";
+            btn.disabled = true;
+
+            // aktualizuj status hneď — používateľ vidí že niečo beží
+            const dot  = document.getElementById("statusDot");
+            const text = document.getElementById("statusText");
+            dot.className  = "conn-dot";
+            text.textContent = "Pripájam sa na " + backendUrl + " …";
+
             if (refreshInterval) clearInterval(refreshInterval);
-            nacitajVsetko();
+            await nacitajVsetko();
+
+            btn.textContent = "Pripojiť";
+            btn.disabled = false;
+
             refreshInterval = setInterval(nacitajVsetko, 5000);
         }
 
@@ -789,9 +812,9 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
         async function nacitajVsetko() {
             try {
                 const [histRes, statsRes, prevRes] = await Promise.all([
-                    fetch(`${backendUrl}/api/historia`),
-                    fetch(`${backendUrl}/api/statistiky`),
-                    fetch(`${backendUrl}/api/historia-prevodov`)
+                    fetchWithTimeout(`${backendUrl}/api/historia`),
+                    fetchWithTimeout(`${backendUrl}/api/statistiky`),
+                    fetchWithTimeout(`${backendUrl}/api/historia-prevodov`)
                 ]);
 
                 const historia = await histRes.json();
@@ -805,13 +828,14 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
                 zobrazPrevody(prevody);
 
             } catch (err) {
+                const isTimeout = err.name === "AbortError";
                 console.error("❌ Chyba:", err);
-                aktualizujStatus(false);
+                aktualizujStatus(false, isTimeout);
             }
         }
 
         // ── status ───────────────────────────────────────────────────
-        function aktualizujStatus(online) {
+        function aktualizujStatus(online, isTimeout = false) {
             const dot    = document.getElementById("statusDot");
             const tbDot  = document.getElementById("topbarDot");
             const text   = document.getElementById("statusText");
@@ -828,7 +852,9 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
             } else {
                 dot.className   = "conn-dot";
                 tbDot.className = "status-dot-bar";
-                text.textContent   = "Chyba pripojenia — skontrolujte URL a CORS";
+                text.textContent   = isTimeout
+                    ? "Timeout — Azure sa prebúdza, skús znova za 30 sekúnd ☕"
+                    : "Chyba pripojenia — skontroluj URL a CORS (pozri F12 → Console)";
                 tbStat.textContent = "Offline";
                 tbStat.style.color = "#f87171";
             }
