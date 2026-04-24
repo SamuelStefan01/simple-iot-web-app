@@ -68,6 +68,11 @@ def inicializuj_databazu():
     print("Databaza inicializovana.")
 
 
+# Inicializacia databazy pri starte modulu — funguje aj pod gunicorn na Azure
+# (blok if __name__=="__main__" sa pod gunicorn nespusta)
+inicializuj_databazu()
+
+
 def uloz_do_databazy(cislo1, cislo2, operacia, vysledok):
     """
     Ulozi jeden zaznam o vypocte do databazy.
