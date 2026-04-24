@@ -1,0 +1,37 @@
+# GitHub Actions workflow — nasadenie Flask app na Azure Web App (App Service)
+# Spustí sa automaticky pri každom push na vetvu "main"
+
+name: Deploy to Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Stiahni kód z repozitára
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. Nastav Python 3.12 (zhoduje sa s Azure runtime)
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 3. Nainštaluj závislosti
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # 4. Nasaď na Azure Web App pomocou publish profile
+      #    AZURE_WEBAPP_PUBLISH_PROFILE = GitHub secret (pozri návod nižšie)
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'iot-backend-samuelstefan'
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: .
