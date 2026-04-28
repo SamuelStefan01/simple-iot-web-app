@@ -7,7 +7,7 @@ Tema projektu: IoT meteorologicka stanica
   - Prijima namerané hodnoty zo senzorov (teplota, tlak, rychlost vetra)
   - Prevadza fyzikalne jednotky medzi rozlichnymi sustavami
   - Uklada historiu prevodov do suboru prevody.json
-  - Poskytuje REST API pre klientsky dashboard (Frontend B)
+  - Poskytuje REST API pre admin dashboard (Frontend B)
 
 Autor: Samuel Stefan
 Predmet: Internet veci
@@ -107,7 +107,7 @@ def nacitaj_vsetky_vypocty():
 
 
 # ============================================================================
-# ROUTE 1: Hlavna stranka (Frontend A - Administracny)
+# ROUTE 1: Hlavna stranka (Frontend A - Vypocet a prevody)
 # URL: /
 # ============================================================================
 
@@ -286,13 +286,13 @@ def statistiky():
 
 
 # ============================================================================
-# ROUTE 6: Frontend B (Klientsky/IoT pohlad)
-# URL: /klient
+# ROUTE 6: Frontend B (Admin/Dashboard pohlad)
+# URL: /dashboard
 # ============================================================================
 
-@app.route("/klient")
-def klientsky_pohlad():
-    """Zobrazi Frontend B - klientsky/IoT pohlad."""
+@app.route("/dashboard")
+def adminský_pohlad():
+    """Zobrazi Frontend B - administracny pohlad."""
     return render_template("frontend_b.html")
 
 
@@ -459,7 +459,7 @@ if __name__ == "__main__":
     print("IoT Backend Server bezi!")
     print("=" * 60)
     print("   Frontend A (Admin):       http://localhost:5000/")
-    print("   Frontend B (Klient):      http://localhost:5000/klient")
+    print("   Frontend B (Admin):        http://localhost:5000/admin")
     print("   API Historia:             http://localhost:5000/api/historia")
     print("   API Statistiky:           http://localhost:5000/api/statistiky")
     print("   IoT Endpoint:             http://localhost:5000/iot/odosli?teplota=22&vlhkost=60")
