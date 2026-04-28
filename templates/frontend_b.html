@@ -143,6 +143,17 @@
         .refresh-chip { display:inline-flex;align-items:center;gap:5px;font-size:.71rem;font-weight:600;padding:3px 10px;background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.16);border-radius:20px;color:var(--green); }
         .refresh-chip .dot { width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse-dot 2s infinite; }
 
+        /* ── COLLAPSE BUTTON ─────────────────────────────────────── */
+        .card-header { position:relative; }
+        .btn-collapse { margin-left:auto;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:30px;height:30px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:8px;cursor:pointer;color:var(--text-dim);transition:background .2s,border-color .2s,color .2s,transform .2s; }
+        .btn-collapse:hover { background:var(--red-dim);border-color:var(--red-mid);color:var(--red); }
+        .btn-collapse svg { width:14px;height:14px;transition:transform .3s cubic-bezier(.4,0,.2,1); }
+        .btn-collapse.collapsed svg { transform:rotate(-90deg); }
+
+        /* Collapse animácia obsahu karty */
+        .card-collapsible { overflow:hidden;transition:max-height .38s cubic-bezier(.4,0,.2,1),opacity .3s ease; max-height:2000px;opacity:1; }
+        .card-collapsible.collapsed { max-height:0 !important;opacity:0; }
+
         /* ── ERROR BANNER ────────────────────────────────────────── */
         .error-banner { display:none;padding:14px 18px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-left:3px solid rgba(239,68,68,.55);border-radius:var(--radius-sm);color:#f87171;font-size:.875rem;margin-bottom:22px; }
         .error-banner code { font-family:'JetBrains Mono',monospace;font-size:.85em;background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px; }
@@ -271,11 +282,18 @@
                         <span class="refresh-chip"><span class="dot"></span> 5s refresh</span>
                     </p>
                 </div>
+                <button class="btn-collapse" id="btnCollapseFeed" onclick="toggleCollapse('feedBody','btnCollapseFeed')" title="Zbaliť / Rozbaliť">
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="2,4 7,9 12,4"/>
+                    </svg>
+                </button>
             </div>
-            <div class="feed-scroll" id="liveFeed">
-                <div class="empty">
-                    <div class="empty-icon">⏳</div>
-                    <p>Načítavam záznamy...</p>
+            <div class="card-collapsible" id="feedBody">
+                <div class="feed-scroll" id="liveFeed">
+                    <div class="empty">
+                        <div class="empty-icon">⏳</div>
+                        <p>Načítavam záznamy...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -288,11 +306,18 @@
                     <h2>História prevodov meteorologických jednotiek</h2>
                     <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.79em;color:var(--red);background:rgba(255,61,107,.08);padding:1px 7px;border-radius:5px;">/api/historia-prevodov</code></p>
                 </div>
+                <button class="btn-collapse" id="btnCollapsePrevody" onclick="toggleCollapse('prevodyBody','btnCollapsePrevody')" title="Zbaliť / Rozbaliť">
+                    <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="2,4 7,9 12,4"/>
+                    </svg>
+                </button>
             </div>
-            <div id="prevodyWrap">
-                <div class="empty">
-                    <div class="empty-icon">⏳</div>
-                    <p>Načítavam prevody...</p>
+            <div class="card-collapsible" id="prevodyBody">
+                <div id="prevodyWrap">
+                    <div class="empty">
+                        <div class="empty-icon">⏳</div>
+                        <p>Načítavam prevody...</p>
+                    </div>
                 </div>
             </div>
         </div>
@@ -456,6 +481,32 @@
                         <tbody>${rows}</tbody>
                     </table>
                 </div>`;
+        }
+
+        // ── Collapse toggle ───────────────────────────────────────
+        function toggleCollapse(bodyId, btnId) {
+            const body = document.getElementById(bodyId);
+            const btn  = document.getElementById(btnId);
+            const isCollapsed = body.classList.contains("collapsed");
+
+            if (isCollapsed) {
+                // Rozbaliť — najprv nastav max-height na skutočnú výšku obsahu
+                body.style.maxHeight = body.scrollHeight + "px";
+                body.classList.remove("collapsed");
+                btn.classList.remove("collapsed");
+                // Po animácii odober inline max-height (aby sa obsah mohol meniť)
+                body.addEventListener("transitionend", function handler() {
+                    body.style.maxHeight = "";
+                    body.removeEventListener("transitionend", handler);
+                });
+            } else {
+                // Zbaliť — najprv zafixuj výšku, potom pridaj collapsed class
+                body.style.maxHeight = body.scrollHeight + "px";
+                // Vynutí reflow pre animáciu
+                body.getBoundingClientRect();
+                body.classList.add("collapsed");
+                btn.classList.add("collapsed");
+            }
         }
 
         // ── Spustenie pri načítaní stránky ────────────────────────
