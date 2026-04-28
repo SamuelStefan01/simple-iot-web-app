@@ -1,51 +1,32 @@
-<!--
-=============================================================================
-FRONTEND A — Administračný panel (Kalkulačka)
-=============================================================================
-Táto stránka slúži na:
-  1. Zadávanie čísel a výber operácie
-  2. Odoslanie dát na backend cez GET request
-  3. Zobrazenie výsledku
-  4. Prezeranie histórie výpočtov
-
-HTML prvky podľa zadania:
-  ✅ Text input   — zadanie čísel
-  ✅ Check button  — výber operácie (radio buttons)
-  ✅ Submit button — odoslanie formulára
-
-Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
-=============================================================================
--->
 <!DOCTYPE html>
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Admin Panel — Frontend A</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>IoT Klient — Biometeorologický Prevodník</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        /* ═══════════════════════════════════════════════════════════
-           RESET & BASE
-           ═══════════════════════════════════════════════════════════ */
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
         :root {
-            --cyan:       #00d4ff;
-            --cyan-dim:   rgba(0, 212, 255, 0.12);
-            --cyan-glow:  rgba(0, 212, 255, 0.35);
-            --green:      #00ff88;
-            --bg-deep:    #060818;
-            --bg-card:    rgba(255, 255, 255, 0.04);
-            --border:     rgba(255, 255, 255, 0.08);
-            --text:       #e2e8f0;
-            --text-dim:   #64748b;
-            --text-muted: #334155;
-            --radius:     16px;
-            --radius-sm:  10px;
+            --cyan:        #00d4ff;
+            --cyan-dim:    rgba(0, 212, 255, 0.09);
+            --cyan-mid:    rgba(0, 212, 255, 0.22);
+            --green:       #00ff88;
+            --amber:       #fbbf24;
+            --red:         #f87171;
+            --bg-deep:     #050814;
+            --bg-card:     rgba(255, 255, 255, 0.035);
+            --bg-card-hov: rgba(255, 255, 255, 0.055);
+            --border:      rgba(255, 255, 255, 0.07);
+            --border-hov:  rgba(0, 212, 255, 0.20);
+            --text:        #e2e8f0;
+            --text-dim:    #64748b;
+            --radius:      18px;
+            --radius-sm:   11px;
         }
 
         html { scroll-behavior: smooth; }
-
         body {
             font-family: 'Inter', sans-serif;
             background: var(--bg-deep);
@@ -54,666 +35,291 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
             overflow-x: hidden;
         }
 
-        /* animated background */
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
+        /* ── BACKGROUND ──────────────────────────────────────────── */
+        .bg-layer { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+
+        .bg-gradient {
+            position: absolute; inset: 0;
             background:
-                radial-gradient(ellipse 80% 60% at 20% -10%, rgba(0,212,255,0.07) 0%, transparent 60%),
-                radial-gradient(ellipse 60% 50% at 80% 110%, rgba(124,92,191,0.09) 0%, transparent 60%),
-                linear-gradient(180deg, #060818 0%, #0a0f24 50%, #06091a 100%);
-            pointer-events: none;
-            z-index: 0;
+                radial-gradient(ellipse 80% 55% at 15% -10%, rgba(0,212,255,0.09) 0%, transparent 55%),
+                radial-gradient(ellipse 55% 45% at 85% 110%, rgba(124,92,191,0.10) 0%, transparent 55%),
+                linear-gradient(180deg, #050814 0%, #080c20 50%, #050814 100%);
         }
 
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
+        .bg-grid {
+            position: absolute; inset: 0;
             background-image:
-                linear-gradient(rgba(0,212,255,0.025) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0,212,255,0.025) 1px, transparent 1px);
-            background-size: 60px 60px;
-            pointer-events: none;
-            z-index: 0;
+                linear-gradient(rgba(0,212,255,0.028) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0,212,255,0.028) 1px, transparent 1px);
+            background-size: 56px 56px;
         }
 
-        /* ═══════════════════════════════════════════════════════════
-           TOPBAR
-           ═══════════════════════════════════════════════════════════ */
+        .orb { position: absolute; border-radius: 50%; filter: blur(90px); opacity: 0; animation: orb-float 24s ease-in-out infinite; }
+        .orb-1 { width:480px;height:480px;background:radial-gradient(circle,rgba(0,212,255,0.17),transparent 70%);top:-140px;left:-90px;animation-delay:0s; }
+        .orb-2 { width:360px;height:360px;background:radial-gradient(circle,rgba(124,92,191,0.15),transparent 70%);bottom:-90px;right:-70px;animation-delay:-9s; }
+        .orb-3 { width:260px;height:260px;background:radial-gradient(circle,rgba(0,255,136,0.09),transparent 70%);top:45%;left:62%;animation-delay:-17s; }
+
+        @keyframes orb-float {
+            0%,100% { opacity:1; transform:translate(0,0) scale(1); }
+            33%  { transform:translate(38px,-28px) scale(1.07); }
+            66%  { transform:translate(-24px,36px) scale(0.95); }
+        }
+
+        .scan-line { position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(0,212,255,0.16),transparent);animation:scan 9s linear infinite;opacity:0.55; }
+        @keyframes scan { 0%{top:-5%} 100%{top:105%} }
+
+        /* ── TOPBAR ──────────────────────────────────────────────── */
         .topbar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 32px;
-            background: rgba(6, 8, 24, 0.85);
-            backdrop-filter: blur(20px);
+            position: sticky; top: 0; z-index: 200;
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 13px 32px;
+            background: rgba(5,8,20,0.82);
+            backdrop-filter: blur(24px);
             border-bottom: 1px solid var(--border);
         }
+        .topbar-logo { display:flex;align-items:center;gap:10px;font-weight:700;font-size:.95rem;color:var(--cyan);letter-spacing:.02em; }
+        .live-dot { width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse-dot 2s infinite;flex-shrink:0; }
+        @keyframes pulse-dot { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(.7)} }
+        .topbar-nav { display:flex;gap:4px; }
+        .nav-link { padding:6px 16px;border-radius:8px;font-size:.84rem;font-weight:500;text-decoration:none;color:var(--text-dim);transition:all .2s; }
+        .nav-link:hover,.nav-link.active { background:var(--cyan-dim);color:var(--cyan); }
+        .nav-link.active { border:1px solid var(--cyan-mid); }
+        .topbar-badge { font-size:.72rem;padding:4px 12px;background:var(--cyan-dim);color:var(--cyan);border:1px solid rgba(0,212,255,.18);border-radius:20px;font-weight:700; }
 
-        .topbar-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 700;
-            font-size: 1rem;
-            color: var(--cyan);
-            letter-spacing: 0.02em;
+        /* ── LAYOUT ──────────────────────────────────────────────── */
+        .page { position:relative;z-index:1;max-width:880px;margin:0 auto;padding:48px 20px 90px; }
+
+        /* ── PAGE HEADER ─────────────────────────────────────────── */
+        .page-header { text-align:center;margin-bottom:52px; }
+        .eyebrow { display:inline-flex;align-items:center;gap:9px;font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--cyan);margin-bottom:16px; }
+        .eyebrow::before,.eyebrow::after { content:'';width:32px;height:1px;background:linear-gradient(90deg,transparent,var(--cyan));opacity:.5; }
+        .eyebrow::after { background:linear-gradient(90deg,var(--cyan),transparent); }
+        .page-header h1 { font-size:2.8rem;font-weight:800;letter-spacing:-.035em;background:linear-gradient(135deg,#f1f5f9 25%,var(--cyan) 85%,#00ff88 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.12;margin-bottom:12px; }
+        .page-header .sub { color:var(--text-dim);font-size:.94rem;line-height:1.6; }
+        .tag-row { display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:22px; }
+        .tag { display:inline-flex;align-items:center;gap:6px;font-size:.71rem;font-weight:600;padding:5px 13px;border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--border);color:var(--text-dim); }
+        .tag-dot { width:5px;height:5px;border-radius:50%;background:var(--cyan);flex-shrink:0;box-shadow:0 0 6px var(--cyan); }
+
+        /* ── CARD ────────────────────────────────────────────────── */
+        .card { position:relative;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:30px;margin-bottom:22px;backdrop-filter:blur(14px);transition:border-color .3s,background .3s,box-shadow .3s;overflow:hidden; }
+        .card::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent);opacity:0;transition:opacity .35s; }
+        .card:hover { border-color:var(--border-hov);background:var(--bg-card-hov);box-shadow:0 8px 40px rgba(0,212,255,.06); }
+        .card:hover::before { opacity:1; }
+        .card-header { display:flex;align-items:center;gap:14px;margin-bottom:26px;padding-bottom:20px;border-bottom:1px solid var(--border); }
+        .card-icon { width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:var(--cyan-dim);border:1px solid var(--cyan-mid);border-radius:12px;font-size:1.15rem;flex-shrink:0;box-shadow:0 0 16px rgba(0,212,255,.12); }
+        .card-header h2 { font-size:1.05rem;font-weight:700;color:#f1f5f9; }
+        .card-header p  { font-size:.77rem;color:var(--text-dim);margin-top:3px; }
+
+        /* ── FORM ────────────────────────────────────────────────── */
+        .form-row { display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px; }
+        @media(max-width:540px){.form-row{grid-template-columns:1fr}}
+        .form-group { display:flex;flex-direction:column;gap:8px; }
+        .form-group label { font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#4a6280; }
+        .form-group input[type="number"], select.styled {
+            padding:12px 16px;background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:var(--radius-sm);color:#f1f5f9;font-family:'Inter',sans-serif;font-size:.97rem;font-weight:500;outline:none;transition:border-color .22s,box-shadow .22s,background .22s;-moz-appearance:textfield;
         }
+        input[type="number"]::-webkit-inner-spin-button{display:none}
+        .form-group input:focus, select.styled:focus { border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,212,255,.10);background:rgba(0,212,255,.03); }
+        .form-group input::placeholder { color:#2d3a4a; }
+        select.styled { cursor:pointer;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;background-size:11px;padding-right:38px; }
+        select.styled option { background:#0d1424; }
 
-        .live-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: var(--green);
-            box-shadow: 0 0 10px var(--green);
-            animation: pulse-dot 2s infinite;
-            flex-shrink: 0;
-        }
+        /* ── RADIO BUTTONS ───────────────────────────────────────── */
+        .radio-row { display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:24px; }
+        @media(max-width:580px){.radio-row{grid-template-columns:1fr 1fr}}
+        .radio-option input[type="radio"] { display:none; }
+        .radio-option label { display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 8px;background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:.81rem;font-weight:500;color:var(--text-dim);transition:all .2s;user-select:none;text-align:center; }
+        .radio-option label .sym { font-size:1.45rem;line-height:1; }
+        .radio-option label:hover { background:rgba(0,212,255,.06);border-color:rgba(0,212,255,.25);color:#cbd5e1;transform:translateY(-1px); }
+        .radio-option input:checked + label { background:var(--cyan-dim);border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 20px rgba(0,212,255,.14);transform:translateY(-1px); }
 
-        @keyframes pulse-dot {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50%       { opacity: 0.5; transform: scale(0.75); }
-        }
+        /* ── BUTTON ──────────────────────────────────────────────── */
+        .btn-primary { width:100%;padding:14px;background:linear-gradient(135deg,#00b8d9,#0070a0);color:#fff;border:none;border-radius:var(--radius-sm);font-family:'Inter',sans-serif;font-size:.94rem;font-weight:700;cursor:pointer;transition:transform .18s,box-shadow .18s;position:relative;overflow:hidden; }
+        .btn-primary:hover:not(:disabled) { transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,184,217,.38); }
+        .btn-primary:active:not(:disabled){transform:translateY(0)}
+        .btn-primary:disabled{opacity:.55;cursor:not-allowed}
 
-        .topbar-nav { display: flex; gap: 6px; }
+        /* ── RESULT ──────────────────────────────────────────────── */
+        .result-box { display:none;margin-top:22px;padding:28px 24px;background:linear-gradient(135deg,rgba(0,212,255,.07),rgba(0,212,255,.02));border:1px solid rgba(0,212,255,.20);border-radius:var(--radius);text-align:center;position:relative;overflow:hidden; }
+        .result-box::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--cyan),transparent); }
+        .result-box.visible { display:block;animation:fadeUp .38s cubic-bezier(.22,1,.36,1); }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+        .result-label { font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.14em;color:var(--text-dim);margin-bottom:8px; }
+        .result-number { font-size:3.8rem;font-weight:800;letter-spacing:-.04em;background:linear-gradient(135deg,#fff 20%,var(--cyan) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;filter:drop-shadow(0 0 20px rgba(0,212,255,.4)); }
+        .result-unit { font-size:1.1rem;font-weight:600;color:var(--cyan);margin-left:4px;vertical-align:middle; }
+        .result-detail { margin-top:10px;font-size:.84rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace; }
 
-        .nav-link {
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            text-decoration: none;
-            color: var(--text-dim);
-            transition: all 0.2s;
-        }
+        /* interpretácia výsledku */
+        .result-badge { display:inline-flex;align-items:center;gap:6px;margin-top:12px;padding:6px 16px;border-radius:20px;font-size:.78rem;font-weight:700; }
+        .badge-ok     { background:rgba(0,230,118,.10);border:1px solid rgba(0,230,118,.25);color:#00e676; }
+        .badge-warn   { background:rgba(251,191,36,.10);border:1px solid rgba(251,191,36,.25);color:#fbbf24; }
+        .badge-danger { background:rgba(248,113,113,.10);border:1px solid rgba(248,113,113,.25);color:#f87171; }
+        .badge-info   { background:var(--cyan-dim);border:1px solid var(--cyan-mid);color:var(--cyan); }
 
-        .nav-link:hover, .nav-link.active {
-            background: var(--cyan-dim);
-            color: var(--cyan);
-        }
+        /* ── URL PREVIEW ─────────────────────────────────────────── */
+        .url-preview { margin-top:16px;padding:12px 16px;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'JetBrains Mono',monospace;font-size:.76rem;color:#3d5166;word-break:break-all;line-height:1.8; }
+        .url-preview strong { color:#475569;font-weight:600; }
+        .url-preview .hl { color:var(--cyan); }
 
-        .topbar-badge {
-            font-size: 0.75rem;
-            padding: 4px 12px;
-            background: var(--cyan-dim);
-            color: var(--cyan);
-            border: 1px solid rgba(0,212,255,0.2);
-            border-radius: 20px;
-            font-weight: 600;
-        }
+        /* ── ERROR ───────────────────────────────────────────────── */
+        .error-msg { display:none;margin-top:14px;padding:12px 16px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.25);border-left:3px solid rgba(239,68,68,.6);border-radius:var(--radius-sm);color:#f87171;font-size:.875rem; }
 
-        /* ═══════════════════════════════════════════════════════════
-           LAYOUT
-           ═══════════════════════════════════════════════════════════ */
-        .page {
-            position: relative;
-            z-index: 1;
-            max-width: 860px;
-            margin: 0 auto;
-            padding: 44px 20px 80px;
-        }
+        /* ── CONV RESULT ─────────────────────────────────────────── */
+        .conv-result { display:none;margin-top:16px;padding:16px 20px;background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.18);border-radius:var(--radius-sm);font-size:1.05rem;font-weight:600;color:var(--cyan);text-align:center;font-family:'JetBrains Mono',monospace;animation:fadeUp .28s ease; }
 
-        /* ═══════════════════════════════════════════════════════════
-           PAGE HEADER
-           ═══════════════════════════════════════════════════════════ */
-        .page-header {
-            text-align: center;
-            margin-bottom: 48px;
-        }
+        /* ── TABLE ───────────────────────────────────────────────── */
+        .table-wrap { overflow-x:auto;border-radius:var(--radius-sm);border:1px solid var(--border); }
+        table.htable { width:100%;border-collapse:collapse;font-size:.875rem; }
+        .htable thead tr { background:linear-gradient(90deg,rgba(0,212,255,.06),rgba(0,212,255,.03)); }
+        .htable th { padding:11px 16px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--cyan);white-space:nowrap; }
+        .htable td { padding:11px 16px;border-top:1px solid var(--border);color:#94a3b8;white-space:nowrap; }
+        .htable tr:hover td { background:rgba(0,212,255,.025);color:#cbd5e1; }
+        .htable .mono { font-family:'JetBrains Mono',monospace;color:var(--cyan);font-weight:600;font-size:.84rem; }
+        .op-badge { display:inline-flex;align-items:center;padding:2px 9px;border-radius:6px;font-size:.72rem;font-weight:600;background:var(--cyan-dim);border:1px solid var(--cyan-mid);color:var(--cyan); }
 
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-            color: var(--cyan);
-            margin-bottom: 14px;
-        }
+        /* ── SPINNER ─────────────────────────────────────────────── */
+        .spinner { display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);border-top-color:#fff;border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle;margin-right:7px; }
+        @keyframes spin{to{transform:rotate(360deg)}}
 
-        .eyebrow::before, .eyebrow::after {
-            content: '';
-            width: 28px;
-            height: 1px;
-            background: var(--cyan);
-            opacity: 0.45;
-        }
+        /* ── FORMULA BOX ─────────────────────────────────────────── */
+        .formula-box { margin-top:18px;padding:14px 18px;background:rgba(0,0,0,.3);border:1px solid var(--border);border-radius:var(--radius-sm);font-family:'JetBrains Mono',monospace;font-size:.77rem;color:#475569;line-height:1.8; }
+        .formula-box .formula-title { font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim);margin-bottom:6px;font-family:'Inter',sans-serif;font-weight:700; }
+        .formula-box .fhl { color:var(--cyan); }
 
-        .page-header h1 {
-            font-size: 2.6rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #f1f5f9 30%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1.15;
-            margin-bottom: 10px;
-        }
-
-        .page-header .sub {
-            color: var(--text-dim);
-            font-size: 0.95rem;
-        }
-
-        .tag-row {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 20px;
-        }
-
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--border);
-            color: var(--text-dim);
-        }
-
-        .tag-dot {
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background: var(--cyan);
-            flex-shrink: 0;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           INFO BANNER
-           ═══════════════════════════════════════════════════════════ */
-        .info-banner {
-            display: flex;
-            align-items: flex-start;
-            gap: 14px;
-            padding: 14px 18px;
-            background: rgba(255,193,7,0.05);
-            border: 1px solid rgba(255,193,7,0.18);
-            border-radius: var(--radius-sm);
-            margin-bottom: 28px;
-        }
-
-        .info-banner .icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 2px; }
-
-        .info-banner p {
-            font-size: 0.87rem;
-            color: #94a3b8;
-            line-height: 1.65;
-        }
-
-        .info-banner code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.82em;
-            background: rgba(0,0,0,0.35);
-            color: var(--cyan);
-            padding: 1px 7px;
-            border-radius: 5px;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           CARD
-           ═══════════════════════════════════════════════════════════ */
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 30px;
-            margin-bottom: 22px;
-            backdrop-filter: blur(12px);
-            transition: border-color 0.3s;
-        }
-
-        .card:hover { border-color: rgba(0,212,255,0.14); }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 24px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .card-icon {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--cyan-dim);
-            border: 1px solid rgba(0,212,255,0.18);
-            border-radius: 11px;
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .card-header h2 {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #f1f5f9;
-        }
-
-        .card-header p {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-            margin-top: 2px;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           FORM ELEMENTS
-           ═══════════════════════════════════════════════════════════ */
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-            margin-bottom: 20px;
-        }
-
-        @media (max-width: 540px) { .form-row { grid-template-columns: 1fr; } }
-
-        .form-group { display: flex; flex-direction: column; gap: 7px; }
-
-        .form-group label {
-            font-size: 0.75rem;
-            font-weight: 700;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
-            color: var(--text-dim);
-        }
-
-        .form-group input[type="number"],
-        .form-group input[type="text"],
-        select.styled {
-            padding: 11px 15px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            color: #f1f5f9;
-            font-family: 'Inter', sans-serif;
-            font-size: 0.975rem;
-            font-weight: 500;
-            outline: none;
-            transition: border-color 0.22s, box-shadow 0.22s;
-            -moz-appearance: textfield;
-        }
-
-        input[type="number"]::-webkit-inner-spin-button { display: none; }
-
-        .form-group input:focus, select.styled:focus {
-            border-color: var(--cyan);
-            box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
-        }
-
-        select.styled {
-            cursor: pointer;
-            appearance: none;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath fill='%2364748b' d='M1 1l5 5 5-5'/%3E%3C/svg%3E");
-            background-repeat: no-repeat;
-            background-position: right 14px center;
-            background-size: 11px;
-            padding-right: 36px;
-        }
-
-        /* Radio / check buttons */
-        .radio-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 22px;
-        }
-
-        @media (max-width: 540px) { .radio-row { grid-template-columns: 1fr 1fr; } }
-
-        .radio-option input[type="radio"] { display: none; }
-
-        .radio-option label {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 5px;
-            padding: 13px 8px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            cursor: pointer;
-            font-size: 0.82rem;
-            font-weight: 500;
-            color: var(--text-dim);
-            transition: all 0.2s;
-            user-select: none;
-        }
-
-        .radio-option label .sym {
-            font-size: 1.3rem;
-            line-height: 1;
-            font-weight: 700;
-        }
-
-        .radio-option label:hover {
-            background: rgba(0,212,255,0.05);
-            border-color: rgba(0,212,255,0.22);
-            color: #cbd5e1;
-        }
-
-        .radio-option input:checked + label {
-            background: var(--cyan-dim);
-            border-color: var(--cyan);
-            color: var(--cyan);
-            box-shadow: 0 0 16px rgba(0,212,255,0.12);
-        }
-
-        /* Submit button */
-        .btn-primary {
-            width: 100%;
-            padding: 13px;
-            background: linear-gradient(135deg, #00c4ef 0%, #0077b3 100%);
-            color: #fff;
-            border: none;
-            border-radius: var(--radius-sm);
-            font-family: 'Inter', sans-serif;
-            font-size: 0.93rem;
-            font-weight: 700;
-            letter-spacing: 0.02em;
-            cursor: pointer;
-            transition: transform 0.18s, box-shadow 0.18s, opacity 0.18s;
-        }
-
-        .btn-primary:hover:not(:disabled) {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0,196,239,0.3);
-        }
-
-        .btn-primary:active:not(:disabled) { transform: translateY(0); }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-
-        /* ═══════════════════════════════════════════════════════════
-           RESULT BOX
-           ═══════════════════════════════════════════════════════════ */
-        .result-box {
-            display: none;
-            margin-top: 20px;
-            padding: 28px 24px;
-            background: linear-gradient(135deg, rgba(0,212,255,0.07), rgba(0,212,255,0.02));
-            border: 1px solid rgba(0,212,255,0.22);
-            border-radius: var(--radius);
-            text-align: center;
-        }
-
-        .result-box.visible {
-            display: block;
-            animation: fadeUp 0.38s ease;
-        }
-
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to   { opacity: 1; transform: translateY(0); }
-        }
-
-        .result-label {
-            font-size: 0.7rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: var(--text-dim);
-            margin-bottom: 8px;
-        }
-
-        .result-number {
-            font-size: 3.4rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #fff 20%, var(--cyan) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1;
-        }
-
-        .result-detail {
-            margin-top: 10px;
-            font-size: 0.83rem;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           URL PREVIEW
-           ═══════════════════════════════════════════════════════════ */
-        .url-preview {
-            margin-top: 14px;
-            padding: 11px 15px;
-            background: rgba(0,0,0,0.3);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.77rem;
-            color: var(--text-muted);
-            word-break: break-all;
-            line-height: 1.7;
-        }
-
-        .url-preview strong { color: #475569; font-weight: 600; }
-        .url-preview .hl   { color: var(--cyan); }
-
-        /* ═══════════════════════════════════════════════════════════
-           ERROR
-           ═══════════════════════════════════════════════════════════ */
-        .error-msg {
-            display: none;
-            margin-top: 12px;
-            padding: 11px 15px;
-            background: rgba(239,68,68,0.07);
-            border: 1px solid rgba(239,68,68,0.28);
-            border-radius: var(--radius-sm);
-            color: #f87171;
-            font-size: 0.875rem;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           CONVERSION RESULT
-           ═══════════════════════════════════════════════════════════ */
-        .conv-result {
-            display: none;
-            margin-top: 14px;
-            padding: 14px 18px;
-            background: rgba(0,212,255,0.06);
-            border: 1px solid rgba(0,212,255,0.18);
-            border-radius: var(--radius-sm);
-            font-size: 1rem;
-            font-weight: 600;
-            color: var(--cyan);
-            text-align: center;
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           TABLE
-           ═══════════════════════════════════════════════════════════ */
-        .table-wrap {
-            overflow-x: auto;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border);
-        }
-
-        table.htable {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.87rem;
-        }
-
-        .htable thead tr { background: rgba(0,212,255,0.05); }
-
-        .htable th {
-            padding: 10px 15px;
-            text-align: left;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--cyan);
-            white-space: nowrap;
-        }
-
-        .htable td {
-            padding: 10px 15px;
-            border-top: 1px solid var(--border);
-            color: #94a3b8;
-            white-space: nowrap;
-        }
-
-        .htable tr:hover td { background: rgba(255,255,255,0.02); color: #cbd5e1; }
-
-        .htable .mono {
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--cyan);
-            font-weight: 600;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           SPINNER
-           ═══════════════════════════════════════════════════════════ */
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: #fff;
-            border-radius: 50%;
-            animation: spin 0.65s linear infinite;
-            vertical-align: middle;
-            margin-right: 6px;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* ── FOOTER ──────────────────────────────────────────────── */
+        .footer { position:relative;z-index:1;text-align:center;padding:28px 20px 40px;font-size:.75rem;color:#2d3a4a;border-top:1px solid var(--border); }
+        .footer span { color:#1e2a38;margin:0 8px; }
     </style>
 </head>
 <body>
 
-    <!-- TOPBAR -->
+    <div class="bg-layer">
+        <div class="bg-gradient"></div>
+        <div class="bg-grid"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="scan-line"></div>
+    </div>
+
     <nav class="topbar">
         <div class="topbar-logo">
             <span class="live-dot"></span>
             IoT Meteorologická Stanica
         </div>
         <div class="topbar-nav">
-            <a href="/" class="nav-link active">Admin</a>
-            <a href="/klient" class="nav-link">Klient</a>
+            <a href="/" class="nav-link active">Klient</a>
+            <a href="/klient" class="nav-link">Admin</a>
         </div>
         <span class="topbar-badge">Frontend A</span>
     </nav>
 
     <main class="page">
 
-        <!-- PAGE HEADER -->
         <header class="page-header">
-            <div class="eyebrow">Administračný panel</div>
-            <h1>IoT Admin Panel</h1>
-            <p class="sub">Správa výpočtov a meteorologických prevodov</p>
+            <div class="eyebrow">Klientský pohľad — Vstup dát</div>
+            <h1>Biometeorologický Prevodník</h1>
+            <p class="sub">Výpočet pocitovej teploty, rosného bodu a vlhkosti vzduchu zo senzorových dát</p>
             <div class="tag-row">
                 <span class="tag"><span class="tag-dot"></span>Flask Backend</span>
                 <span class="tag"><span class="tag-dot"></span>GET Request</span>
                 <span class="tag"><span class="tag-dot"></span>SQLite DB</span>
-                <span class="tag"><span class="tag-dot"></span>Azure Cloud</span>
+                <span class="tag"><span class="tag-dot"></span>Vedecké vzorce</span>
             </div>
         </header>
 
         <!-- INFO BANNER -->
-        <div class="info-banner">
-            <span class="icon">💡</span>
-            <p>
-                Formulár odosiela dáta pomocou <code>GET</code> requestu — parametre sú viditeľné v URL,
-                napr. <code>/vypocet?cislo1=10&amp;cislo2=5&amp;operacia=plus</code>
+        <div style="display:flex;align-items:flex-start;gap:14px;padding:14px 20px;background:rgba(255,193,7,.04);border:1px solid rgba(255,193,7,.15);border-left:3px solid rgba(255,193,7,.5);border-radius:var(--radius-sm);margin-bottom:28px;">
+            <span style="font-size:1rem;flex-shrink:0;margin-top:2px;">💡</span>
+            <p style="font-size:.86rem;color:#94a3b8;line-height:1.7;">
+                Zadajte senzorové dáta a zvoľte typ výpočtu. Formulár odosiela <code style="font-family:'JetBrains Mono',monospace;font-size:.82em;background:rgba(0,0,0,.4);color:var(--cyan);padding:1px 7px;border-radius:5px;">GET</code> request — parametre sú viditeľné v URL.
             </p>
         </div>
 
-        <!-- ── KARTA: KALKULAČKA ── -->
+        <!-- KARTA: BIOMETEOROLOGICKÝ PREVODNÍK -->
         <div class="card">
             <div class="card-header">
-                <div class="card-icon">🧮</div>
+                <div class="card-icon">🌤️</div>
                 <div>
-                    <h2>Kalkulačka</h2>
-                    <p>Výpočet a uloženie do SQLite databázy</p>
+                    <h2>Biometeorologický prevodník</h2>
+                    <p>Výpočty z nameraných hodnôt IoT senzora</p>
                 </div>
             </div>
 
-            <form id="kalkulackaForm" onsubmit="return odosliFormular(event)">
+            <form id="bioForm" onsubmit="return odosliBio(event)">
 
-                <!-- TEXT INPUTS -->
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="cislo1">Prvé číslo</label>
-                        <input type="number" id="cislo1" name="cislo1"
-                               placeholder="napr. 42" step="any" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="cislo2">Druhé číslo</label>
-                        <input type="number" id="cislo2" name="cislo2"
-                               placeholder="napr. 7" step="any" required>
-                    </div>
-                </div>
-
-                <!-- RADIO / CHECK BUTTONS -->
-                <div class="form-group" style="margin-bottom: 22px;">
-                    <label>Operácia</label>
+                <!-- Typ výpočtu -->
+                <div class="form-group" style="margin-bottom:22px;">
+                    <label>Typ výpočtu</label>
                     <div class="radio-row">
                         <div class="radio-option">
-                            <input type="radio" id="op_plus" name="operacia" value="plus" checked>
-                            <label for="op_plus"><span class="sym">+</span>Sčítanie</label>
+                            <input type="radio" id="op_heat" name="operacia" value="heat_index" checked>
+                            <label for="op_heat"><span class="sym">🌡️</span>Heat Index</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="op_minus" name="operacia" value="minus">
-                            <label for="op_minus"><span class="sym">−</span>Odčítanie</label>
+                            <input type="radio" id="op_dew" name="operacia" value="dew_point">
+                            <label for="op_dew"><span class="sym">💧</span>Rosný bod</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="op_krat" name="operacia" value="krat">
-                            <label for="op_krat"><span class="sym">×</span>Násobenie</label>
+                            <input type="radio" id="op_wc" name="operacia" value="wind_chill">
+                            <label for="op_wc"><span class="sym">🌬️</span>Pocitová teplota</label>
                         </div>
                         <div class="radio-option">
-                            <input type="radio" id="op_deleno" name="operacia" value="deleno">
-                            <label for="op_deleno"><span class="sym">÷</span>Delenie</label>
+                            <input type="radio" id="op_ah" name="operacia" value="abs_humidity">
+                            <label for="op_ah"><span class="sym">💨</span>Abs. vlhkosť</label>
                         </div>
                     </div>
                 </div>
 
-                <!-- SUBMIT BUTTON -->
+                <!-- Vstupy -->
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="cislo1">Teplota (°C)</label>
+                        <input type="number" id="cislo1" placeholder="napr. 28" step="any" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="cislo2" id="cislo2Label">Relatívna vlhkosť (%)</label>
+                        <input type="number" id="cislo2" placeholder="napr. 70" step="any" required>
+                    </div>
+                </div>
+
                 <button type="submit" class="btn-primary" id="submitBtn">
-                    Vypočítať a odoslať
+                    Vypočítať
                 </button>
             </form>
 
+            <!-- Výsledok -->
             <div class="result-box" id="vysledokBox">
-                <div class="result-label">Výsledok</div>
-                <div class="result-number" id="vysledokCislo">—</div>
+                <div class="result-label" id="vysledokLabel">Výsledok</div>
+                <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;">
+                    <div class="result-number" id="vysledokCislo">—</div>
+                    <span class="result-unit" id="vysledokUnit">°C</span>
+                </div>
                 <div class="result-detail" id="vysledokDetail"></div>
+                <div id="vysledokBadge"></div>
+            </div>
+
+            <!-- Vzorec -->
+            <div class="formula-box" id="formulaBox">
+                <div class="formula-title">Použitý vzorec</div>
+                <span id="formulaText" class="fhl">Rothfusz regression — Heat Index (Steadman, 1979)</span>
             </div>
 
             <div class="url-preview" id="urlPreview">
                 <strong>GET Request:</strong><br>
-                <span id="urlText">/vypocet?cislo1=_&amp;cislo2=_&amp;operacia=plus</span>
+                <span id="urlText">/vypocet?cislo1=_&amp;cislo2=_&amp;operacia=heat_index</span>
             </div>
 
             <div class="error-msg" id="chybaMsg"></div>
         </div>
 
-        <!-- ── KARTA: PREVODNÍK JEDNOTIEK ── -->
+        <!-- KARTA: PREVODNÍK METEOROLOGICKÝCH JEDNOTIEK -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">🌡️</div>
                 <div>
                     <h2>Prevodník meteorologických jednotiek</h2>
-                    <p>Teplota · Tlak · Rýchlosť vetra</p>
+                    <p>Teplota · Atmosferický tlak · Rýchlosť vetra</p>
                 </div>
             </div>
 
@@ -721,8 +327,7 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
                 <div class="form-row">
                     <div class="form-group">
                         <label for="pHodnota">Nameraná hodnota</label>
-                        <input type="number" id="pHodnota"
-                               placeholder="napr. 25 / 1013 / 10" step="any" required>
+                        <input type="number" id="pHodnota" placeholder="napr. 25 / 1013 / 10" step="any" required>
                     </div>
                     <div class="form-group">
                         <label for="pTyp">Typ prevodu</label>
@@ -733,27 +338,24 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
                         </select>
                     </div>
                 </div>
-
-                <button type="submit" class="btn-primary" id="prevodBtn">
-                    Previesť jednotky
-                </button>
+                <button type="submit" class="btn-primary" id="prevodBtn">Previesť jednotky</button>
             </form>
 
             <div class="conv-result" id="pVystup"></div>
 
-            <div class="url-preview" id="prevodUrlPreview" style="margin-top:12px;">
+            <div class="url-preview" id="prevodUrlPreview" style="margin-top:14px;">
                 <strong>GET Request:</strong><br>
                 <span id="prevodUrlText">/api/prevod?hodnota=_&amp;typ=c_to_f</span>
             </div>
         </div>
 
-        <!-- ── KARTA: HISTÓRIA ── -->
+        <!-- KARTA: HISTÓRIA VÝPOČTOV -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">📊</div>
                 <div>
-                    <h2>História výpočtov</h2>
-                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--cyan);">/api/historia</code></p>
+                    <h2>Moje výpočty (história)</h2>
+                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.79em;color:var(--cyan);background:rgba(0,212,255,.08);padding:1px 7px;border-radius:5px;">/api/historia</code></p>
                 </div>
             </div>
             <div id="historiaObsah">
@@ -763,37 +365,104 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
 
     </main>
 
+    <footer class="footer">
+        IoT Meteorologická Stanica <span>·</span> Frontend A — Klient <span>·</span> Samuel Štefan <span>·</span> TUKE — Internet vecí
+    </footer>
+
     <script>
-        // ── config ──────────────────────────────────────────────────
         const BACKEND_URL = window.location.origin;
 
-        // ── url preview (kalkulačka) ─────────────────────────────────
-        function aktualizujUrlPreview() {
+        // ── Konfigurácia pre každý typ operácie ───────────────────
+        const OPS = {
+            heat_index: {
+                label2:      "Relatívna vlhkosť (%)",
+                placeholder2:"napr. 70",
+                resultLabel: "Heat Index",
+                unit:        "°C",
+                formula:     "Rothfusz regression — Heat Index (Steadman, 1979)",
+                interpret:   function(v) {
+                    if (v < 27)  return { cls:"badge-info",   text:"🌤️ Bežná teplota" };
+                    if (v < 33)  return { cls:"badge-ok",     text:"☀️ Horúco" };
+                    if (v < 40)  return { cls:"badge-warn",   text:"⚠️ Veľmi horúco — zvýšené riziko" };
+                    return           { cls:"badge-danger", text:"🔥 Nebezpečné — riziko tepelného šoku" };
+                }
+            },
+            dew_point: {
+                label2:      "Relatívna vlhkosť (%)",
+                placeholder2:"napr. 70",
+                resultLabel: "Rosný bod",
+                unit:        "°C",
+                formula:     "August–Roche–Magnus approximation — Dew Point",
+                interpret:   function(v) {
+                    if (v < 10)  return { cls:"badge-info",   text:"🌵 Suchý vzduch" };
+                    if (v < 16)  return { cls:"badge-ok",     text:"😊 Príjemný vzduch" };
+                    if (v < 21)  return { cls:"badge-warn",   text:"😥 Vlhko — trochu dusno" };
+                    return           { cls:"badge-danger", text:"😰 Veľmi vlhko — dusno" };
+                }
+            },
+            wind_chill: {
+                label2:      "Rýchlosť vetra (km/h)",
+                placeholder2:"napr. 25 (min. 5)",
+                resultLabel: "Pocitová teplota",
+                unit:        "°C",
+                formula:     "Environment Canada Wind Chill formula (2001)",
+                interpret:   function(v) {
+                    if (v > 0)   return { cls:"badge-info",   text:"🌤️ Chladný vietor" };
+                    if (v > -10) return { cls:"badge-ok",     text:"🧥 Chlad — odporúčaná bunda" };
+                    if (v > -28) return { cls:"badge-warn",   text:"⚠️ Mráz — riziko omrzlín" };
+                    return           { cls:"badge-danger", text:"❄️ Extrémny mráz — nebezpečné" };
+                }
+            },
+            abs_humidity: {
+                label2:      "Relatívna vlhkosť (%)",
+                placeholder2:"napr. 65",
+                resultLabel: "Absolútna vlhkosť",
+                unit:        "g/m³",
+                formula:     "Buck equation — Absolute Humidity (Buck, 1981)",
+                interpret:   function(v) {
+                    if (v < 4)   return { cls:"badge-info",   text:"🌵 Veľmi suchý vzduch" };
+                    if (v < 10)  return { cls:"badge-ok",     text:"😊 Normálna vlhkosť" };
+                    if (v < 16)  return { cls:"badge-warn",   text:"💧 Zvýšená vlhkosť" };
+                    return           { cls:"badge-danger", text:"🌊 Vysoká vlhkosť — dusno" };
+                }
+            }
+        };
+
+        // ── Aktualizácia labelu / URL preview ─────────────────────
+        function aktualizujLabel() {
+            const op  = document.querySelector('input[name="operacia"]:checked').value;
+            const cfg = OPS[op];
+            document.getElementById("cislo2Label").textContent = cfg.label2;
+            document.getElementById("cislo2").placeholder      = cfg.placeholder2;
+            document.getElementById("formulaText").textContent = cfg.formula;
+            aktualizujUrl();
+        }
+
+        function aktualizujUrl() {
             const c1 = document.getElementById("cislo1").value || "_";
             const c2 = document.getElementById("cislo2").value || "_";
             const op = document.querySelector('input[name="operacia"]:checked').value;
             document.getElementById("urlText").innerHTML =
-                `<span class="hl">${BACKEND_URL}</span>/vypocet?cislo1=${c1}&amp;cislo2=${c2}&amp;operacia=${op}`;
+                `<span class="hl">${BACKEND_URL}</span>/vypocet?cislo1=<span class="hl">${c1}</span>&amp;cislo2=<span class="hl">${c2}</span>&amp;operacia=<span class="hl">${op}</span>`;
         }
 
-        document.getElementById("cislo1").addEventListener("input", aktualizujUrlPreview);
-        document.getElementById("cislo2").addEventListener("input", aktualizujUrlPreview);
-        document.querySelectorAll('input[name="operacia"]').forEach(r =>
-            r.addEventListener("change", aktualizujUrlPreview));
+        document.querySelectorAll('input[name="operacia"]').forEach(r => r.addEventListener("change", aktualizujLabel));
+        document.getElementById("cislo1").addEventListener("input", aktualizujUrl);
+        document.getElementById("cislo2").addEventListener("input", aktualizujUrl);
 
-        // ── odoslanie kalkulačky ─────────────────────────────────────
-        async function odosliFormular(event) {
+        // ── Odoslanie biometeorologického výpočtu ─────────────────
+        async function odosliBio(event) {
             event.preventDefault();
             document.getElementById("chybaMsg").style.display = "none";
+            document.getElementById("vysledokBox").classList.remove("visible");
 
             const cislo1   = document.getElementById("cislo1").value;
             const cislo2   = document.getElementById("cislo2").value;
             const operacia = document.querySelector('input[name="operacia"]:checked').value;
-
-            if (!cislo1 || !cislo2) { zobrazChybu("Prosím, vyplňte obe čísla!"); return false; }
+            const cfg      = OPS[operacia];
 
             const btn = document.getElementById("submitBtn");
-            btn.innerHTML = '<span class="spinner"></span> Počítam...';
+            btn.innerHTML = '<span class="spinner"></span>Počítam...';
             btn.disabled  = true;
 
             try {
@@ -801,32 +470,40 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
                 const resp = await fetch(url);
                 const data = await resp.json();
 
-                if (data.chyba) { zobrazChybu(data.chyba); }
-                else            { zobrazVysledok(data); nacitajHistoriu(); }
+                if (data.chyba) {
+                    const el = document.getElementById("chybaMsg");
+                    el.textContent  = "⚠  " + data.chyba;
+                    el.style.display = "block";
+                } else {
+                    document.getElementById("vysledokLabel").textContent  = cfg.resultLabel;
+                    document.getElementById("vysledokCislo").textContent  = data.vysledok;
+                    document.getElementById("vysledokUnit").textContent   = cfg.unit;
+                    document.getElementById("vysledokDetail").textContent =
+                        `T=${data.cislo1}°C, 2. vstup=${data.cislo2} → ${data.vysledok} ${cfg.unit}  ·  ID #${data.id}  ·  ${data.cas}`;
+
+                    const intr = cfg.interpret(data.vysledok);
+                    document.getElementById("vysledokBadge").innerHTML =
+                        `<span class="result-badge ${intr.cls}">${intr.text}</span>`;
+
+                    document.getElementById("vysledokBox").classList.add("visible");
+                    nacitajHistoriu();
+                }
             } catch {
-                zobrazChybu("Nepodarilo sa spojiť so serverom. Je backend spustený?");
+                const el = document.getElementById("chybaMsg");
+                el.textContent  = "⚠  Nepodarilo sa spojiť so serverom.";
+                el.style.display = "block";
             } finally {
-                btn.innerHTML = "Vypočítať a odoslať";
+                btn.innerHTML = "Vypočítať";
                 btn.disabled  = false;
             }
             return false;
         }
 
-        function zobrazVysledok(data) {
-            document.getElementById("vysledokCislo").textContent = data.vysledok;
-            const sym = { plus:"+", minus:"−", krat:"×", deleno:"÷" }[data.operacia] || "?";
-            document.getElementById("vysledokDetail").textContent =
-                `${data.cislo1} ${sym} ${data.cislo2} = ${data.vysledok}  ·  ID #${data.id}  ·  ${data.cas}`;
-            document.getElementById("vysledokBox").classList.add("visible");
-        }
+        // ── História výpočtov ──────────────────────────────────────
+        const OP_NAMES   = { heat_index:"Heat Index", dew_point:"Rosný bod", wind_chill:"Pocitová teplota", abs_humidity:"Abs. vlhkosť" };
+        const UNITS_MAP  = { heat_index:"°C", dew_point:"°C", wind_chill:"°C", abs_humidity:"g/m³" };
+        const INPUT2_MAP = { heat_index:"% RH", dew_point:"% RH", wind_chill:"km/h", abs_humidity:"% RH" };
 
-        function zobrazChybu(msg) {
-            const el = document.getElementById("chybaMsg");
-            el.textContent = "⚠  " + msg;
-            el.style.display = "block";
-        }
-
-        // ── história výpočtov ───────────────────────────────────────
         async function nacitajHistoriu() {
             try {
                 const res  = await fetch(`${BACKEND_URL}/api/historia`);
@@ -834,17 +511,16 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
                 const cont = document.getElementById("historiaObsah");
 
                 if (!data.length) {
-                    cont.innerHTML = '<p style="color:var(--text-dim);font-size:.9rem;">Zatiaľ žiadne výpočty.</p>';
+                    cont.innerHTML = '<p style="color:var(--text-dim);font-size:.9rem;">Zatiaľ žiadne záznamy.</p>';
                     return;
                 }
 
-                const sym  = { plus:"+", minus:"−", krat:"×", deleno:"÷" };
                 const rows = data.map(r => `
                     <tr>
                         <td class="mono">#${r.id}</td>
-                        <td>${r.cislo1} ${sym[r.operacia]||"?"} ${r.cislo2}</td>
-                        <td class="mono">${r.vysledok}</td>
-                        <td>${r.operacia}</td>
+                        <td>${r.cislo1} °C, ${r.cislo2} ${INPUT2_MAP[r.operacia] || ""}</td>
+                        <td class="mono">${r.vysledok} ${UNITS_MAP[r.operacia] || ""}</td>
+                        <td><span class="op-badge">${OP_NAMES[r.operacia] || r.operacia}</span></td>
                         <td>${r.cas}</td>
                     </tr>`).join("");
 
@@ -852,8 +528,8 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
                     <div class="table-wrap">
                         <table class="htable">
                             <thead><tr>
-                                <th>ID</th><th>Výpočet</th><th>Výsledok</th>
-                                <th>Operácia</th><th>Čas</th>
+                                <th>ID</th><th>Vstup (T + 2. vel.)</th>
+                                <th>Výsledok</th><th>Typ</th><th>Čas</th>
                             </tr></thead>
                             <tbody>${rows}</tbody>
                         </table>
@@ -864,18 +540,17 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
             }
         }
 
-        // ── url preview (prevodník) ─────────────────────────────────
+        // ── URL preview prevodník ──────────────────────────────────
         function aktualizujPrevodUrl() {
             const h = document.getElementById("pHodnota").value || "_";
             const t = document.getElementById("pTyp").value;
             document.getElementById("prevodUrlText").innerHTML =
-                `<span class="hl">${BACKEND_URL}</span>/api/prevod?hodnota=${h}&amp;typ=${t}`;
+                `<span class="hl">${BACKEND_URL}</span>/api/prevod?hodnota=<span class="hl">${h}</span>&amp;typ=<span class="hl">${t}</span>`;
         }
-
-        document.getElementById("pHodnota").addEventListener("input",  aktualizujPrevodUrl);
+        document.getElementById("pHodnota").addEventListener("input", aktualizujPrevodUrl);
         document.getElementById("pTyp").addEventListener("change", aktualizujPrevodUrl);
 
-        // ── odoslanie prevodu ───────────────────────────────────────
+        // ── Odoslanie prevodu ──────────────────────────────────────
         async function odosliPrevod(event) {
             event.preventDefault();
             const hodnota = document.getElementById("pHodnota").value;
@@ -883,32 +558,33 @@ Komunikácia: GET request → parametre viditeľné v URL riadku prehliadača
             const vystup  = document.getElementById("pVystup");
             const btn     = document.getElementById("prevodBtn");
 
-            btn.innerHTML = '<span class="spinner"></span> Prevádzam...';
+            btn.innerHTML = '<span class="spinner"></span>Prevádzam...';
             btn.disabled  = true;
 
             try {
-                const url  = `${BACKEND_URL}/api/prevod?hodnota=${hodnota}&typ=${typ}`;
-                const resp = await fetch(url);
+                const resp = await fetch(`${BACKEND_URL}/api/prevod?hodnota=${hodnota}&typ=${typ}`);
                 const data = await resp.json();
                 if (data.chyba) {
-                    vystup.textContent = "\u26a0  " + data.chyba;
-                    vystup.style.color = "#f87171";
+                    vystup.textContent   = "⚠  " + data.chyba;
+                    vystup.style.color   = "#f87171";
                 } else {
-                    vystup.textContent = "\u2713  " + data.popis;
-                    vystup.style.color = "var(--cyan)";
+                    vystup.textContent   = "✓  " + data.popis;
+                    vystup.style.color   = "var(--cyan)";
                 }
                 vystup.style.display = "block";
             } catch {
-                vystup.textContent = "\u26a0  Chyba spojenia so serverom.";
-                vystup.style.color = "#f87171";
+                vystup.textContent   = "⚠  Chyba spojenia.";
+                vystup.style.color   = "#f87171";
                 vystup.style.display = "block";
             } finally {
-                btn.innerHTML = "Previes\u0165 jednotky";
+                btn.innerHTML = "Previesť jednotky";
                 btn.disabled  = false;
             }
             return false;
         }
 
+        // Inicializácia
+        aktualizujLabel();
         nacitajHistoriu();
         setInterval(nacitajHistoriu, 10000);
     </script>

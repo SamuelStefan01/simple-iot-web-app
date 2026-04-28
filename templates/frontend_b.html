@@ -1,688 +1,215 @@
-<!--
-=============================================================================
-FRONTEND B — Klientsky / IoT Pohľad
-=============================================================================
-Táto stránka REPREZENTUJE DRUHÚ DOMÉNU v IoT architektúre.
-
-V produkcii by bežala na inej URL, napr.:
-  Frontend A: http://iot-admin.azurewebsites.net
-  Frontend B: http://iot-klient.azurewebsites.net  ← toto
-
-Kľúčové koncepty:
-  1. Táto stránka ŽIADNE dáta nezadáva — iba ČÍTA z API
-  2. Komunikuje s backendom cez fetch() — GET requesty na API endpointy
-  3. Dáta sa automaticky obnovia každých 5 sekúnd (polling)
-  4. CORS musí byť povolený na backende, inak komunikácia zlyhá
-
-Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
-               zo senzorov alebo výsledky spracované na serveri.
-=============================================================================
--->
 <!DOCTYPE html>
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Klient Dashboard — Frontend B</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <title>IoT Admin Dashboard — Frontend B</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        /* ═══════════════════════════════════════════════════════════
-           RESET & TOKENS
-           ═══════════════════════════════════════════════════════════ */
-        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+        *, *::before, *::after { margin:0;padding:0;box-sizing:border-box; }
 
         :root {
             --red:        #ff3d6b;
-            --red-dim:    rgba(255, 61, 107, 0.12);
-            --red-glow:   rgba(255, 61, 107, 0.3);
+            --red-dim:    rgba(255,61,107,0.09);
+            --red-mid:    rgba(255,61,107,0.22);
             --cyan:       #00d4ff;
             --green:      #00e676;
-            --bg-deep:    #04060f;
-            --bg-card:    rgba(255, 255, 255, 0.04);
-            --border:     rgba(255, 255, 255, 0.07);
+            --orange:     #fbbf24;
+            --bg-deep:    #040610;
+            --bg-card:    rgba(255,255,255,0.035);
+            --bg-card-hov:rgba(255,255,255,0.055);
+            --border:     rgba(255,255,255,0.065);
+            --border-hov: rgba(255,61,107,0.20);
             --text:       #e2e8f0;
             --text-dim:   #64748b;
-            --text-muted: #2d3748;
-            --radius:     16px;
-            --radius-sm:  10px;
+            --radius:     18px;
+            --radius-sm:  11px;
         }
 
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bg-deep);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
-        }
-
-        body::before {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background:
-                radial-gradient(ellipse 70% 55% at 85% -5%,  rgba(255,61,107,0.07) 0%, transparent 60%),
-                radial-gradient(ellipse 55% 45% at 10% 110%, rgba(0,212,255,0.06)  0%, transparent 60%),
-                linear-gradient(180deg, #04060f 0%, #080b1a 50%, #040610 100%);
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        body::after {
-            content: '';
-            position: fixed;
-            inset: 0;
-            background-image:
-                linear-gradient(rgba(255,61,107,0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255,61,107,0.02) 1px, transparent 1px);
-            background-size: 60px 60px;
-            pointer-events: none;
-            z-index: 0;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           TOPBAR
-           ═══════════════════════════════════════════════════════════ */
-        .topbar {
-            position: sticky;
-            top: 0;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 32px;
-            background: rgba(4, 6, 15, 0.88);
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .topbar-logo {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 700;
-            font-size: 1rem;
-            color: var(--red);
-            letter-spacing: 0.02em;
-        }
-
-        .status-dot-bar {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #555;
-            flex-shrink: 0;
-            transition: background 0.4s, box-shadow 0.4s;
-        }
-
-        .status-dot-bar.online {
-            background: var(--green);
-            box-shadow: 0 0 10px var(--green);
-            animation: pulse-dot 2s infinite;
-        }
-
-        @keyframes pulse-dot {
-            0%,100% { opacity: 1; transform: scale(1);    }
-            50%      { opacity: 0.5; transform: scale(0.75); }
-        }
-
-        .topbar-nav { display: flex; gap: 6px; }
-
-        .nav-link {
-            padding: 6px 16px;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 500;
-            text-decoration: none;
-            color: var(--text-dim);
-            transition: all 0.2s;
-        }
-
-        .nav-link:hover, .nav-link.active {
-            background: var(--red-dim);
-            color: var(--red);
-        }
-
-        .topbar-right {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .topbar-badge {
-            font-size: 0.75rem;
-            padding: 4px 12px;
-            background: var(--red-dim);
-            color: var(--red);
-            border: 1px solid rgba(255,61,107,0.2);
-            border-radius: 20px;
-            font-weight: 600;
-        }
-
-        #topbarStatus {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           PAGE
-           ═══════════════════════════════════════════════════════════ */
-        .page {
-            position: relative;
-            z-index: 1;
-            max-width: 960px;
-            margin: 0 auto;
-            padding: 40px 20px 80px;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           PAGE HEADER
-           ═══════════════════════════════════════════════════════════ */
-        .page-header {
-            text-align: center;
-            margin-bottom: 44px;
-        }
-
-        .eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            letter-spacing: 0.14em;
-            text-transform: uppercase;
-            color: var(--red);
-            margin-bottom: 12px;
-        }
-
-        .eyebrow::before, .eyebrow::after {
-            content: '';
-            width: 26px;
-            height: 1px;
-            background: var(--red);
-            opacity: 0.4;
-        }
-
-        .page-header h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            background: linear-gradient(135deg, #f1f5f9 30%, var(--red) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1.15;
-            margin-bottom: 10px;
-        }
-
-        .page-header .sub { color: var(--text-dim); font-size: 0.95rem; }
-
-        .tag-row {
-            display: flex;
-            justify-content: center;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 18px;
-        }
-
-        .tag {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 4px 12px;
-            border-radius: 20px;
-            background: rgba(255,255,255,0.04);
-            border: 1px solid var(--border);
-            color: var(--text-dim);
-        }
-
-        .tag-dot-r { width: 5px; height: 5px; border-radius: 50%; background: var(--red); flex-shrink: 0; }
-        .tag-dot-g { width: 5px; height: 5px; border-radius: 50%; background: var(--green); flex-shrink: 0; animation: pulse-dot 2s infinite; }
-
-        /* ═══════════════════════════════════════════════════════════
-           CONFIG PANEL
-           ═══════════════════════════════════════════════════════════ */
-        .config-panel {
-            padding: 18px 22px;
-            background: rgba(255,61,107,0.05);
-            border: 1px solid rgba(255,61,107,0.16);
-            border-radius: var(--radius-sm);
-            margin-bottom: 24px;
-        }
-
-        .config-panel h3 {
-            font-size: 0.875rem;
-            font-weight: 700;
-            color: var(--red);
-            margin-bottom: 6px;
-        }
-
-        .config-panel p {
-            font-size: 0.82rem;
-            color: var(--text-dim);
-            margin-bottom: 12px;
-            line-height: 1.6;
-        }
-
-        .config-panel code {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.82em;
-            background: rgba(0,0,0,0.35);
-            color: var(--red);
-            padding: 1px 7px;
-            border-radius: 5px;
-        }
-
-        .config-row {
-            display: flex;
-            gap: 10px;
-        }
-
-        .config-row input {
-            flex: 1;
-            padding: 10px 14px;
-            background: rgba(255,255,255,0.05);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            color: #fff;
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.85rem;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-
-        .config-row input:focus { border-color: var(--red); }
-
-        .btn-connect {
-            padding: 10px 22px;
-            background: var(--red);
-            color: #fff;
-            border: none;
-            border-radius: var(--radius-sm);
-            font-family: 'Inter', sans-serif;
-            font-size: 0.875rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: transform 0.18s, box-shadow 0.18s;
-            white-space: nowrap;
-        }
-
-        .btn-connect:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 18px rgba(255,61,107,0.3);
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           STATUS BAR
-           ═══════════════════════════════════════════════════════════ */
-        .status-bar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 14px 20px;
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            margin-bottom: 24px;
-        }
-
-        .status-left {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.875rem;
-        }
-
-        .conn-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #555;
-            flex-shrink: 0;
-            transition: background 0.4s, box-shadow 0.4s;
-        }
-
-        .conn-dot.online {
-            background: var(--green);
-            box-shadow: 0 0 10px rgba(0,230,118,0.5);
-            animation: pulse-dot 2s infinite;
-        }
-
-        #statusText { font-weight: 500; }
-
-        .status-right {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           CARD
-           ═══════════════════════════════════════════════════════════ */
-        .card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 28px;
-            margin-bottom: 22px;
-            backdrop-filter: blur(12px);
-            transition: border-color 0.3s;
-        }
-
-        .card:hover { border-color: rgba(255,61,107,0.12); }
-
-        .card-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 22px;
-            padding-bottom: 18px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .card-icon {
-            width: 40px;
-            height: 40px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--red-dim);
-            border: 1px solid rgba(255,61,107,0.18);
-            border-radius: 11px;
-            font-size: 1.1rem;
-            flex-shrink: 0;
-        }
-
-        .card-header h2 {
-            font-size: 1.05rem;
-            font-weight: 700;
-            color: #f1f5f9;
-        }
-
-        .card-header p {
-            font-size: 0.78rem;
-            color: var(--text-dim);
-            margin-top: 2px;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           BIG RESULT DISPLAY
-           ═══════════════════════════════════════════════════════════ */
-        .big-display {
-            text-align: center;
-            padding: 28px 20px;
-        }
-
-        .big-number {
-            font-size: 4.5rem;
-            font-weight: 800;
-            letter-spacing: -0.04em;
-            background: linear-gradient(135deg, #fff 20%, var(--red) 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            line-height: 1;
-        }
-
-        .big-detail {
-            margin-top: 10px;
-            font-size: 1.05rem;
-            font-weight: 500;
-            color: #94a3b8;
-        }
-
-        .big-time {
-            margin-top: 6px;
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            font-family: 'JetBrains Mono', monospace;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           STATS GRID
-           ═══════════════════════════════════════════════════════════ */
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 14px;
-        }
-
-        .stat-card {
-            padding: 20px 16px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            text-align: center;
-            transition: border-color 0.3s, background 0.3s;
-        }
-
-        .stat-card:hover {
-            background: rgba(255,61,107,0.04);
-            border-color: rgba(255,61,107,0.2);
-        }
-
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 800;
-            letter-spacing: -0.03em;
-            color: var(--red);
-            line-height: 1;
-        }
-
-        .stat-label {
-            margin-top: 6px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            letter-spacing: 0.07em;
-            text-transform: uppercase;
-            color: var(--text-dim);
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           LIVE FEED
-           ═══════════════════════════════════════════════════════════ */
-        .feed-scroll {
-            max-height: 380px;
-            overflow-y: auto;
-        }
-
-        .feed-scroll::-webkit-scrollbar { width: 4px; }
-        .feed-scroll::-webkit-scrollbar-track { background: transparent; }
-        .feed-scroll::-webkit-scrollbar-thumb { background: rgba(255,61,107,0.25); border-radius: 4px; }
-
-        .feed-item {
-            display: grid;
-            grid-template-columns: 52px 1fr auto auto;
-            align-items: center;
-            gap: 12px;
-            padding: 11px 14px;
-            border-bottom: 1px solid var(--border);
-            transition: background 0.2s;
-        }
-
-        .feed-item:last-child { border-bottom: none; }
-        .feed-item:hover { background: rgba(255,255,255,0.02); }
-
-        .feed-item.flash {
-            animation: flash-in 1.8s ease;
-        }
-
-        @keyframes flash-in {
-            0%   { background: rgba(255,61,107,0.18); }
-            100% { background: transparent; }
-        }
-
-        .feed-id {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: var(--red);
-        }
-
-        .feed-expr { font-size: 0.87rem; color: #cbd5e1; }
-
-        .feed-res {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: var(--red);
-            text-align: right;
-        }
-
-        .feed-time {
-            font-size: 0.72rem;
-            color: var(--text-dim);
-            text-align: right;
-            white-space: nowrap;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           PREVODY TABLE
-           ═══════════════════════════════════════════════════════════ */
-        .table-wrap {
-            overflow-x: auto;
-            border-radius: var(--radius-sm);
-            border: 1px solid var(--border);
-        }
-
-        table.ptable {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.875rem;
-        }
-
-        .ptable thead tr { background: rgba(255,61,107,0.05); }
-
-        .ptable th {
-            padding: 10px 15px;
-            text-align: left;
-            font-size: 0.7rem;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            text-transform: uppercase;
-            color: var(--red);
-            white-space: nowrap;
-        }
-
-        .ptable td {
-            padding: 10px 15px;
-            border-top: 1px solid var(--border);
-            color: #94a3b8;
-            white-space: nowrap;
-        }
-
-        .ptable tr:hover td { background: rgba(255,255,255,0.02); color: #cbd5e1; }
-
-        .ptable .mono {
-            font-family: 'JetBrains Mono', monospace;
-            color: var(--red);
-            font-weight: 600;
-        }
-
-        /* ═══════════════════════════════════════════════════════════
-           EMPTY STATE
-           ═══════════════════════════════════════════════════════════ */
-        .empty {
-            text-align: center;
-            padding: 40px 20px;
-            color: var(--text-dim);
-        }
-
-        .empty-icon { font-size: 2.4rem; margin-bottom: 12px; opacity: 0.6; }
-        .empty p { font-size: 0.875rem; }
-
-        /* ═══════════════════════════════════════════════════════════
-           SPINNER
-           ═══════════════════════════════════════════════════════════ */
-        .spinner {
-            display: inline-block;
-            width: 14px;
-            height: 14px;
-            border: 2px solid rgba(255,255,255,0.25);
-            border-top-color: var(--red);
-            border-radius: 50%;
-            animation: spin 0.65s linear infinite;
-            vertical-align: middle;
-        }
-
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* refresh chip */
-        .refresh-chip {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
-            font-size: 0.72rem;
-            font-weight: 600;
-            padding: 3px 10px;
-            background: rgba(0,230,118,0.08);
-            border: 1px solid rgba(0,230,118,0.18);
-            border-radius: 20px;
-            color: var(--green);
-        }
-
-        .refresh-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s infinite; }
+        html { scroll-behavior:smooth; }
+        body { font-family:'Inter',sans-serif;background:var(--bg-deep);color:var(--text);min-height:100vh;overflow-x:hidden; }
+
+        /* ── BACKGROUND ──────────────────────────────────────────── */
+        .bg-layer { position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden; }
+        .bg-gradient { position:absolute;inset:0;background:radial-gradient(ellipse 75% 50% at 88% -8%,rgba(255,61,107,0.09) 0%,transparent 55%),radial-gradient(ellipse 50% 45% at 8% 110%,rgba(0,212,255,0.07) 0%,transparent 55%),linear-gradient(180deg,#040610 0%,#080b1c 50%,#040610 100%); }
+        .bg-grid { position:absolute;inset:0;background-image:linear-gradient(rgba(255,61,107,0.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,61,107,0.022) 1px,transparent 1px);background-size:56px 56px; }
+        .orb { position:absolute;border-radius:50%;filter:blur(90px);opacity:0;animation:orb-float 22s ease-in-out infinite; }
+        .orb-1 { width:460px;height:460px;background:radial-gradient(circle,rgba(255,61,107,0.15),transparent 70%);top:-110px;right:-80px;animation-delay:0s; }
+        .orb-2 { width:360px;height:360px;background:radial-gradient(circle,rgba(0,212,255,0.10),transparent 70%);bottom:-80px;left:-60px;animation-delay:-7s; }
+        .orb-3 { width:250px;height:250px;background:radial-gradient(circle,rgba(251,191,36,0.07),transparent 70%);top:40%;left:55%;animation-delay:-14s; }
+        @keyframes orb-float { 0%,100%{opacity:1;transform:translate(0,0) scale(1)} 33%{transform:translate(-32px,24px) scale(1.07)} 66%{transform:translate(28px,-32px) scale(0.95)} }
+        .scan-line { position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,rgba(255,61,107,0.13),transparent);animation:scan 11s linear infinite;opacity:.5; }
+        @keyframes scan{0%{top:-5%}100%{top:105%}}
+
+        /* ── TOPBAR ──────────────────────────────────────────────── */
+        .topbar { position:sticky;top:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:13px 32px;background:rgba(4,6,16,0.85);backdrop-filter:blur(24px);border-bottom:1px solid var(--border); }
+        .topbar-logo { display:flex;align-items:center;gap:10px;font-weight:700;font-size:.95rem;color:var(--red);letter-spacing:.02em; }
+        .status-dot-bar { width:8px;height:8px;border-radius:50%;background:#3a3a4a;flex-shrink:0;transition:background .4s,box-shadow .4s; }
+        .status-dot-bar.online { background:var(--green);box-shadow:0 0 12px var(--green);animation:pulse-dot 2s infinite; }
+        @keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.7)}}
+        .topbar-nav { display:flex;gap:4px; }
+        .nav-link { padding:6px 16px;border-radius:8px;font-size:.84rem;font-weight:500;text-decoration:none;color:var(--text-dim);transition:all .2s; }
+        .nav-link:hover { background:var(--red-dim);color:var(--red); }
+        .nav-link.active { background:var(--red-dim);color:var(--red);border:1px solid var(--red-mid); }
+        .topbar-right { display:flex;align-items:center;gap:12px; }
+        .topbar-badge { font-size:.72rem;padding:4px 12px;background:var(--red-dim);color:var(--red);border:1px solid rgba(255,61,107,.18);border-radius:20px;font-weight:700; }
+        #topbarStatus { font-size:.78rem;color:var(--text-dim); }
+
+        /* ── LAYOUT ──────────────────────────────────────────────── */
+        .page { position:relative;z-index:1;max-width:980px;margin:0 auto;padding:44px 20px 90px; }
+
+        /* ── PAGE HEADER ─────────────────────────────────────────── */
+        .page-header { text-align:center;margin-bottom:48px; }
+        .eyebrow { display:inline-flex;align-items:center;gap:9px;font-size:.7rem;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--red);margin-bottom:14px; }
+        .eyebrow::before,.eyebrow::after { content:'';width:30px;height:1px;background:linear-gradient(90deg,transparent,var(--red));opacity:.45; }
+        .eyebrow::after { background:linear-gradient(90deg,var(--red),transparent); }
+        .page-header h1 { font-size:2.7rem;font-weight:800;letter-spacing:-.035em;background:linear-gradient(135deg,#f1f5f9 25%,var(--red) 80%,var(--orange) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.12;margin-bottom:12px; }
+        .page-header .sub { color:var(--text-dim);font-size:.94rem;line-height:1.6; }
+        .tag-row { display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:20px; }
+        .tag { display:inline-flex;align-items:center;gap:6px;font-size:.71rem;font-weight:600;padding:5px 13px;border-radius:20px;background:rgba(255,255,255,.035);border:1px solid var(--border);color:var(--text-dim); }
+        .tag-dot-r { width:5px;height:5px;border-radius:50%;background:var(--red);flex-shrink:0;box-shadow:0 0 6px var(--red); }
+        .tag-dot-g { width:5px;height:5px;border-radius:50%;background:var(--green);flex-shrink:0;animation:pulse-dot 2s infinite; }
+
+        /* ── STATUS BAR ──────────────────────────────────────────── */
+        .status-bar { display:flex;align-items:center;justify-content:space-between;padding:14px 20px;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:26px;transition:border-color .3s; }
+        .status-bar.connected { border-color:rgba(0,230,118,.2); }
+        .status-left { display:flex;align-items:center;gap:10px;font-size:.875rem; }
+        .conn-dot { width:10px;height:10px;border-radius:50%;background:#3a3a4a;flex-shrink:0;transition:background .4s,box-shadow .4s; }
+        .conn-dot.online { background:var(--green);box-shadow:0 0 12px rgba(0,230,118,.55);animation:pulse-dot 2s infinite; }
+        #statusText { font-weight:500; }
+        .status-right { font-size:.77rem;color:var(--text-dim); }
+
+        /* ── CARD ────────────────────────────────────────────────── */
+        .card { position:relative;background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:28px;margin-bottom:22px;backdrop-filter:blur(14px);transition:border-color .3s,background .3s,box-shadow .3s;overflow:hidden; }
+        .card::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:0;transition:opacity .35s; }
+        .card:hover { border-color:var(--border-hov);background:var(--bg-card-hov);box-shadow:0 8px 40px rgba(255,61,107,.06); }
+        .card:hover::before { opacity:1; }
+        .card-header { display:flex;align-items:center;gap:14px;margin-bottom:22px;padding-bottom:18px;border-bottom:1px solid var(--border); }
+        .card-icon { width:42px;height:42px;display:flex;align-items:center;justify-content:center;background:var(--red-dim);border:1px solid var(--red-mid);border-radius:12px;font-size:1.15rem;flex-shrink:0;box-shadow:0 0 16px rgba(255,61,107,.12); }
+        .card-header h2 { font-size:1.05rem;font-weight:700;color:#f1f5f9; }
+        .card-header p  { font-size:.77rem;color:var(--text-dim);margin-top:3px; }
+
+        /* ── BIG DISPLAY ─────────────────────────────────────────── */
+        .big-display { text-align:center;padding:28px 20px 20px; }
+        .big-number { font-size:5rem;font-weight:800;letter-spacing:-.045em;background:linear-gradient(135deg,#fff 20%,var(--red) 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1;filter:drop-shadow(0 0 22px rgba(255,61,107,.38)); }
+        .big-unit { font-size:1.3rem;font-weight:600;color:var(--red);margin-left:4px;vertical-align:middle; }
+        .big-detail { margin-top:12px;font-size:1rem;font-weight:500;color:#94a3b8; }
+        .big-time { margin-top:7px;font-size:.78rem;color:var(--text-dim);font-family:'JetBrains Mono',monospace; }
+
+        /* ── STATS GRID ──────────────────────────────────────────── */
+        .stats-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px; }
+        .stat-card { padding:22px 16px;background:rgba(255,255,255,.028);border:1px solid var(--border);border-radius:var(--radius-sm);text-align:center;transition:border-color .3s,background .3s,transform .2s,box-shadow .2s;position:relative;overflow:hidden; }
+        .stat-card::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--red),transparent);opacity:0;transition:opacity .3s; }
+        .stat-card:hover { background:rgba(255,61,107,.04);border-color:rgba(255,61,107,.22);transform:translateY(-2px);box-shadow:0 8px 24px rgba(255,61,107,.10); }
+        .stat-card:hover::before { opacity:1; }
+        .stat-icon { font-size:1.3rem;margin-bottom:10px;opacity:.8; }
+        .stat-value { font-size:2.2rem;font-weight:800;letter-spacing:-.04em;color:var(--red);line-height:1; }
+        .stat-label { margin-top:7px;font-size:.7rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--text-dim); }
+
+        /* ── FEED ────────────────────────────────────────────────── */
+        .feed-scroll { max-height:390px;overflow-y:auto; }
+        .feed-scroll::-webkit-scrollbar{width:4px}
+        .feed-scroll::-webkit-scrollbar-track{background:transparent}
+        .feed-scroll::-webkit-scrollbar-thumb{background:rgba(255,61,107,.2);border-radius:4px}
+        .feed-item { display:grid;grid-template-columns:54px 1fr auto auto;align-items:center;gap:14px;padding:12px 14px;border-bottom:1px solid var(--border);transition:background .2s; }
+        .feed-item:last-child { border-bottom:none; }
+        .feed-item:hover { background:rgba(255,255,255,.02); }
+        .feed-item.flash { animation:flash-in 2s ease; }
+        @keyframes flash-in{0%{background:rgba(255,61,107,.16)}100%{background:transparent}}
+        .feed-id { font-family:'JetBrains Mono',monospace;font-size:.74rem;font-weight:600;color:var(--red); }
+        .feed-expr { font-size:.88rem;color:#cbd5e1; }
+        .feed-res { font-family:'JetBrains Mono',monospace;font-size:.96rem;font-weight:700;color:var(--red);text-align:right;white-space:nowrap; }
+        .feed-time { font-size:.71rem;color:var(--text-dim);text-align:right;white-space:nowrap; }
+
+        /* ── TABLE ───────────────────────────────────────────────── */
+        .table-wrap { overflow-x:auto;border-radius:var(--radius-sm);border:1px solid var(--border); }
+        table.ptable { width:100%;border-collapse:collapse;font-size:.875rem; }
+        .ptable thead tr { background:linear-gradient(90deg,rgba(255,61,107,.06),rgba(255,61,107,.03)); }
+        .ptable th { padding:11px 16px;text-align:left;font-size:.68rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--red);white-space:nowrap; }
+        .ptable td { padding:11px 16px;border-top:1px solid var(--border);color:#94a3b8;white-space:nowrap; }
+        .ptable tr:hover td { background:rgba(255,61,107,.02);color:#cbd5e1; }
+        .ptable .mono { font-family:'JetBrains Mono',monospace;color:var(--red);font-weight:600;font-size:.84rem; }
+        .typ-badge { display:inline-flex;align-items:center;padding:2px 9px;border-radius:6px;font-size:.72rem;font-weight:600;background:var(--red-dim);border:1px solid var(--red-mid);color:var(--red); }
+
+        /* ── EMPTY ───────────────────────────────────────────────── */
+        .empty { text-align:center;padding:44px 20px;color:var(--text-dim); }
+        .empty-icon { font-size:2.6rem;margin-bottom:14px;opacity:.55; }
+        .empty p { font-size:.875rem;line-height:1.6; }
+
+        /* ── SPINNER ─────────────────────────────────────────────── */
+        .spinner { display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:var(--red);border-radius:50%;animation:spin .65s linear infinite;vertical-align:middle; }
+        @keyframes spin{to{transform:rotate(360deg)}}
+
+        .refresh-chip { display:inline-flex;align-items:center;gap:5px;font-size:.71rem;font-weight:600;padding:3px 10px;background:rgba(0,230,118,.07);border:1px solid rgba(0,230,118,.16);border-radius:20px;color:var(--green); }
+        .refresh-chip .dot { width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse-dot 2s infinite; }
+
+        /* ── ERROR BANNER ────────────────────────────────────────── */
+        .error-banner { display:none;padding:14px 18px;background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-left:3px solid rgba(239,68,68,.55);border-radius:var(--radius-sm);color:#f87171;font-size:.875rem;margin-bottom:22px; }
+        .error-banner code { font-family:'JetBrains Mono',monospace;font-size:.85em;background:rgba(0,0,0,.3);padding:1px 6px;border-radius:4px; }
+
+        /* ── FOOTER ──────────────────────────────────────────────── */
+        .footer { position:relative;z-index:1;text-align:center;padding:28px 20px 40px;font-size:.75rem;color:#2a3040;border-top:1px solid var(--border); }
+        .footer span { color:#1e2a38;margin:0 8px; }
     </style>
 </head>
 <body>
 
-    <!-- TOPBAR -->
+    <div class="bg-layer">
+        <div class="bg-gradient"></div>
+        <div class="bg-grid"></div>
+        <div class="orb orb-1"></div>
+        <div class="orb orb-2"></div>
+        <div class="orb orb-3"></div>
+        <div class="scan-line"></div>
+    </div>
+
     <nav class="topbar">
         <div class="topbar-logo">
             <span class="status-dot-bar" id="topbarDot"></span>
             IoT Meteorologická Stanica
         </div>
         <div class="topbar-nav">
-            <a href="/" class="nav-link">Admin</a>
-            <a href="/klient" class="nav-link active">Klient</a>
+            <a href="/" class="nav-link">Klient</a>
+            <a href="/klient" class="nav-link active">Admin</a>
         </div>
         <div class="topbar-right">
-            <span id="topbarStatus" style="font-size:.78rem;color:var(--text-dim);">Nepripojené</span>
+            <span id="topbarStatus">Načítavam...</span>
             <span class="topbar-badge">Frontend B</span>
         </div>
     </nav>
 
     <main class="page">
 
-        <!-- PAGE HEADER -->
         <header class="page-header">
-            <div class="eyebrow">IoT Klientský pohľad</div>
-            <h1>Live Dashboard</h1>
-            <p class="sub">Frontend B — Čítanie dát z backendu cez API</p>
+            <div class="eyebrow">Administračný pohľad — Databáza</div>
+            <h1>Admin Dashboard</h1>
+            <p class="sub">Frontend B — Monitorovanie dát z IoT senzora v reálnom čase</p>
             <div class="tag-row">
                 <span class="tag"><span class="tag-dot-r"></span>Len čítanie</span>
-                <span class="tag"><span class="tag-dot-r"></span>CORS</span>
+                <span class="tag"><span class="tag-dot-r"></span>REST API</span>
                 <span class="tag"><span class="tag-dot-g"></span>Auto-refresh 5s</span>
             </div>
         </header>
 
-        <!-- CONFIG PANEL -->
-        <div class="config-panel">
-            <h3>⚙️ Pripojenie na backend</h3>
-            <p>
-                Zadajte URL backendu. Backend musí mať povolený <code>CORS</code>, inak komunikácia zlyhá.
-                Lokálne: <code>http://localhost:5000</code>
-            </p>
-            <div class="config-row">
-                <input type="text" id="backendUrl"
-                       placeholder="http://localhost:5000  alebo  https://tvoj-backend.azurewebsites.net"
-                       value="">
-                <button class="btn-connect" onclick="pripojNaBackend()">Pripojiť</button>
-            </div>
+        <!-- Chybový banner (zobrazí sa ak backend nefunguje) -->
+        <div class="error-banner" id="errorBanner">
+            ⚠️ Nepodarilo sa načítať dáta z backendu.
+            Skontroluj či server beží na <code id="errorUrl"></code> a či je povolený CORS.
+            Viac info: F12 → Console.
         </div>
 
-        <!-- STATUS BAR -->
-        <div class="status-bar">
+        <!-- Status bar -->
+        <div class="status-bar" id="statusBar">
             <div class="status-left">
                 <span class="conn-dot" id="statusDot"></span>
-                <span id="statusText">Nepripojené</span>
+                <span id="statusText">Pripájam sa...</span>
             </div>
             <div class="status-right">
                 Posledná aktualizácia: <strong id="lastUpdate">—</strong>
             </div>
         </div>
 
-        <!-- ── KARTA: POSLEDNÝ VÝPOČET ── -->
+        <!-- KARTA: POSLEDNÝ VÝPOČET -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">🎯</div>
@@ -691,131 +218,108 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
                     <p>Najnovší záznam z databázy</p>
                 </div>
             </div>
-
             <div id="poslednyDisplay">
                 <div class="empty">
-                    <div class="empty-icon">📡</div>
-                    <p>Pripojte sa na backend pre zobrazenie dát</p>
+                    <div class="empty-icon">⏳</div>
+                    <p>Načítavam dáta...</p>
                 </div>
             </div>
         </div>
 
-        <!-- ── KARTA: ŠTATISTIKY ── -->
+        <!-- KARTA: ŠTATISTIKY -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">📈</div>
                 <div>
                     <h2>Štatistiky</h2>
-                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/statistiky</code></p>
+                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.79em;color:var(--red);background:rgba(255,61,107,.08);padding:1px 7px;border-radius:5px;">/api/statistiky</code></p>
                 </div>
             </div>
-
             <div class="stats-grid">
                 <div class="stat-card">
+                    <div class="stat-icon">🔢</div>
                     <div class="stat-value" id="statPocet">—</div>
                     <div class="stat-label">Celkom výpočtov</div>
                 </div>
                 <div class="stat-card">
+                    <div class="stat-icon">📊</div>
                     <div class="stat-value" id="statPriemer">—</div>
                     <div class="stat-label">Priemerný výsledok</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="statPlus">—</div>
-                    <div class="stat-label">Sčítania</div>
+                    <div class="stat-icon">🌡️</div>
+                    <div class="stat-value" id="statHeatIdx">—</div>
+                    <div class="stat-label">Heat Index</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value" id="statMinus">—</div>
-                    <div class="stat-label">Odčítania</div>
+                    <div class="stat-icon">💧</div>
+                    <div class="stat-value" id="statDewPt">—</div>
+                    <div class="stat-label">Rosný bod</div>
                 </div>
             </div>
         </div>
 
-        <!-- ── KARTA: LIVE FEED ── -->
+        <!-- KARTA: LIVE FEED -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">📋</div>
                 <div>
-                    <h2>Live Feed</h2>
+                    <h2>Live Feed — Biometeorologické záznamy</h2>
                     <p>
-                        Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/historia</code>
+                        Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.79em;color:var(--red);background:rgba(255,61,107,.08);padding:1px 7px;border-radius:5px;">/api/historia</code>
                         &nbsp;
                         <span class="refresh-chip"><span class="dot"></span> 5s refresh</span>
                     </p>
                 </div>
             </div>
-
             <div class="feed-scroll" id="liveFeed">
                 <div class="empty">
-                    <p>Čakám na pripojenie...</p>
+                    <div class="empty-icon">⏳</div>
+                    <p>Načítavam záznamy...</p>
                 </div>
             </div>
         </div>
 
-        <!-- ── KARTA: HISTÓRIA PREVODOV ── -->
+        <!-- KARTA: HISTÓRIA PREVODOV JEDNOTIEK -->
         <div class="card">
             <div class="card-header">
                 <div class="card-icon">🌡️</div>
                 <div>
                     <h2>História prevodov meteorologických jednotiek</h2>
-                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.8em;color:var(--red);">/api/historia-prevodov</code></p>
+                    <p>Endpoint: <code style="font-family:'JetBrains Mono',monospace;font-size:.79em;color:var(--red);background:rgba(255,61,107,.08);padding:1px 7px;border-radius:5px;">/api/historia-prevodov</code></p>
                 </div>
             </div>
-
             <div id="prevodyWrap">
-                <div class="empty"><p>Čakám na dáta...</p></div>
+                <div class="empty">
+                    <div class="empty-icon">⏳</div>
+                    <p>Načítavam prevody...</p>
+                </div>
             </div>
         </div>
 
     </main>
 
+    <footer class="footer">
+        IoT Meteorologická Stanica <span>·</span> Frontend B — Admin <span>·</span> Samuel Štefan <span>·</span> TUKE — Internet vecí
+    </footer>
+
     <script>
-        // ── globals ──────────────────────────────────────────────────
-        let backendUrl = "";
-        let refreshInterval = null;
+        // Backend URL je vždy rovnaká doména — žiadny manuálny input!
+        const BACKEND_URL = window.location.origin;
         let lastFeedCount = 0;
 
-        // ── pomocná funkcia: fetch s timeoutom ─────────────────────
-        function fetchWithTimeout(url, ms = 10000) {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), ms);
-            return fetch(url, { signal: controller.signal })
-                .finally(() => clearTimeout(timer));
-        }
-
-        // ── pripojenie ───────────────────────────────────────────────
-        async function pripojNaBackend() {
-            let url = document.getElementById("backendUrl").value.trim();
-            if (!url) url = window.location.origin;
-            backendUrl = url.replace(/\/$/, "");
-
-            // loading stav tlačidla
-            const btn = document.querySelector(".btn-connect");
-            btn.textContent = "Pripájam...";
-            btn.disabled = true;
-
-            // aktualizuj status hneď — používateľ vidí že niečo beží
-            const dot  = document.getElementById("statusDot");
-            const text = document.getElementById("statusText");
-            dot.className  = "conn-dot";
-            text.textContent = "Pripájam sa na " + backendUrl + " …";
-
-            if (refreshInterval) clearInterval(refreshInterval);
-            await nacitajVsetko();
-
-            btn.textContent = "Pripojiť";
-            btn.disabled = false;
-
-            refreshInterval = setInterval(nacitajVsetko, 5000);
-        }
-
-        // ── nacítaj všetko ──────────────────────────────────────────
+        // ── Načítanie všetkých dát ────────────────────────────────
         async function nacitajVsetko() {
             try {
                 const [histRes, statsRes, prevRes] = await Promise.all([
-                    fetchWithTimeout(`${backendUrl}/api/historia`),
-                    fetchWithTimeout(`${backendUrl}/api/statistiky`),
-                    fetchWithTimeout(`${backendUrl}/api/historia-prevodov`)
+                    fetch(BACKEND_URL + "/api/historia"),
+                    fetch(BACKEND_URL + "/api/statistiky"),
+                    fetch(BACKEND_URL + "/api/historia-prevodov")
                 ]);
+
+                if (!histRes.ok || !statsRes.ok || !prevRes.ok) {
+                    throw new Error("HTTP " + histRes.status);
+                }
 
                 const historia = await histRes.json();
                 const stats    = await statsRes.json();
@@ -827,98 +331,119 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
                 zobrazLiveFeed(historia);
                 zobrazPrevody(prevody);
 
+                document.getElementById("errorBanner").style.display = "none";
+
             } catch (err) {
-                const isTimeout = err.name === "AbortError";
-                console.error("❌ Chyba:", err);
-                aktualizujStatus(false, isTimeout);
+                console.error("Admin dashboard chyba:", err);
+                aktualizujStatus(false);
+                document.getElementById("errorUrl").textContent = BACKEND_URL;
+                document.getElementById("errorBanner").style.display = "block";
             }
         }
 
-        // ── status ───────────────────────────────────────────────────
-        function aktualizujStatus(online, isTimeout = false) {
+        // ── Status ────────────────────────────────────────────────
+        function aktualizujStatus(online) {
             const dot    = document.getElementById("statusDot");
             const tbDot  = document.getElementById("topbarDot");
             const text   = document.getElementById("statusText");
             const tbStat = document.getElementById("topbarStatus");
             const update = document.getElementById("lastUpdate");
+            const bar    = document.getElementById("statusBar");
 
             if (online) {
-                dot.className   = "conn-dot online";
-                tbDot.className = "status-dot-bar online";
-                text.textContent   = "Pripojené — " + backendUrl;
-                tbStat.textContent = "Online";
-                tbStat.style.color = "var(--green)";
-                update.textContent = new Date().toLocaleTimeString("sk-SK");
+                dot.className          = "conn-dot online";
+                tbDot.className        = "status-dot-bar online";
+                text.textContent       = "Pripojené — " + BACKEND_URL;
+                tbStat.textContent     = "Online";
+                tbStat.style.color     = "var(--green)";
+                update.textContent     = new Date().toLocaleTimeString("sk-SK");
+                bar.classList.add("connected");
             } else {
-                dot.className   = "conn-dot";
-                tbDot.className = "status-dot-bar";
-                text.textContent   = isTimeout
-                    ? "Timeout — Azure sa prebúdza, skús znova za 30 sekúnd ☕"
-                    : "Chyba pripojenia — skontroluj URL a CORS (pozri F12 → Console)";
-                tbStat.textContent = "Offline";
-                tbStat.style.color = "#f87171";
+                dot.className          = "conn-dot";
+                tbDot.className        = "status-dot-bar";
+                text.textContent       = "Chyba pripojenia — backend nedostupný";
+                tbStat.textContent     = "Offline";
+                tbStat.style.color     = "#f87171";
+                bar.classList.remove("connected");
             }
         }
 
-        // ── posledný výpočet ─────────────────────────────────────────
+        // ── Posledný výpočet ──────────────────────────────────────
+        const OP_NAMES  = { heat_index:"Heat Index", dew_point:"Rosný bod", wind_chill:"Pocitová teplota", abs_humidity:"Abs. vlhkosť" };
+        const UNITS_MAP = { heat_index:"°C", dew_point:"°C", wind_chill:"°C", abs_humidity:"g/m³" };
+        const IN2_MAP   = { heat_index:"% RH", dew_point:"% RH", wind_chill:"km/h", abs_humidity:"% RH" };
+
         function zobrazPosledny(historia) {
             const el = document.getElementById("poslednyDisplay");
             if (!historia || !historia.length) {
-                el.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Zatiaľ žiadne výpočty. Zadajte niečo na Frontende A!</p></div>`;
+                el.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Zatiaľ žiadne záznamy.<br>Zadajte dáta na Frontende A!</p></div>`;
                 return;
             }
-            const p   = historia[0];
-            const sym = { plus:"+", minus:"−", krat:"×", deleno:"÷" }[p.operacia] || "?";
+            const p    = historia[0];
+            const name = OP_NAMES[p.operacia]  || p.operacia;
+            const unit = UNITS_MAP[p.operacia] || "";
+            const u2   = IN2_MAP[p.operacia]   || "";
             el.innerHTML = `
                 <div class="big-display">
-                    <div class="big-number">${p.vysledok}</div>
-                    <div class="big-detail">${p.cislo1} ${sym} ${p.cislo2}</div>
+                    <div style="font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--text-dim);margin-bottom:8px;">${name}</div>
+                    <div style="display:flex;align-items:baseline;justify-content:center;gap:6px;">
+                        <div class="big-number">${p.vysledok}</div>
+                        <span class="big-unit">${unit}</span>
+                    </div>
+                    <div class="big-detail">T = ${p.cislo1} °C &nbsp;·&nbsp; 2. vstup = ${p.cislo2} ${u2}</div>
                     <div class="big-time">ID: #${p.id} &nbsp;·&nbsp; ${p.cas}</div>
                 </div>`;
         }
 
-        // ── štatistiky ───────────────────────────────────────────────
+        // ── Štatistiky ────────────────────────────────────────────
         function zobrazStatistiky(stats) {
             document.getElementById("statPocet").textContent  = stats.celkovy_pocet ?? 0;
             document.getElementById("statPriemer").textContent =
                 stats.priemerny_vysledok ? (+stats.priemerny_vysledok).toFixed(2) : "0";
-            document.getElementById("statPlus").textContent   = stats.podla_operacie?.plus  ?? 0;
-            document.getElementById("statMinus").textContent  = stats.podla_operacie?.minus ?? 0;
+            document.getElementById("statHeatIdx").textContent  = stats.podla_operacie?.heat_index  ?? 0;
+            document.getElementById("statDewPt").textContent    = stats.podla_operacie?.dew_point   ?? 0;
         }
 
-        // ── live feed ────────────────────────────────────────────────
+        // ── Live Feed ─────────────────────────────────────────────
         function zobrazLiveFeed(historia) {
             const feed = document.getElementById("liveFeed");
             if (!historia || !historia.length) {
-                feed.innerHTML = `<div class="empty"><p>\u017diadne z\u00e1znamy.</p></div>`;
+                feed.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Žiadne záznamy.</p></div>`;
                 lastFeedCount  = 0;
                 return;
             }
-            const isNew = historia.length > lastFeedCount;
+            const isNew   = historia.length > lastFeedCount;
             lastFeedCount = historia.length;
-            const sym  = { plus:"+", minus:"\u2212", krat:"\u00d7", deleno:"\u00f7" };
-            const rows = historia.map((r, i) => `
-                <div class="feed-item${i === 0 && isNew ? ' flash' : ''}">
+
+            const rows = historia.map((r, i) => {
+                const name = OP_NAMES[r.operacia]  || r.operacia;
+                const unit = UNITS_MAP[r.operacia] || "";
+                const u2   = IN2_MAP[r.operacia]   || "";
+                return `<div class="feed-item${i === 0 && isNew ? ' flash' : ''}">
                     <span class="feed-id">#${r.id}</span>
-                    <span class="feed-expr">${r.cislo1} ${sym[r.operacia]||"?"} ${r.cislo2}</span>
-                    <span class="feed-res">${r.vysledok}</span>
+                    <span class="feed-expr">T=${r.cislo1}°C, ${r.cislo2}${u2} · <em style="color:var(--text-dim);font-style:normal;">${name}</em></span>
+                    <span class="feed-res">${r.vysledok} ${unit}</span>
                     <span class="feed-time">${r.cas}</span>
-                </div>`).join("");
+                </div>`;
+            }).join("");
+
             feed.innerHTML = rows;
         }
 
+        // ── História prevodov jednotiek ───────────────────────────
         function zobrazPrevody(prevody) {
             const wrap = document.getElementById("prevodyWrap");
-            if (\!prevody || \!prevody.length) {
-                wrap.innerHTML = `<div class="empty"><p>\u017diadne z\u00e1znamy prevodov.</p></div>`;
+            if (!prevody || !prevody.length) {
+                wrap.innerHTML = `<div class="empty"><div class="empty-icon">📭</div><p>Žiadne záznamy prevodov.</p></div>`;
                 return;
             }
-            const typLabels = { c_to_f:"\u00b0C \u2192 \u00b0F", hpa_to_mmhg:"hPa \u2192 mmHg", ms_to_kmh:"m/s \u2192 km/h" };
+            const typLabels = { c_to_f:"°C → °F", hpa_to_mmhg:"hPa → mmHg", ms_to_kmh:"m/s → km/h" };
             const rows = [...prevody].reverse().map(r => `
                 <tr>
                     <td class="mono">${r.hodnota}</td>
-                    <td>${typLabels[r.typ] || r.typ}</td>
+                    <td><span class="typ-badge">${typLabels[r.typ] || r.typ}</span></td>
                     <td class="mono">${r.vysledok}</td>
+                    <td>${r.popis}</td>
                     <td>${r.cas}</td>
                 </tr>`).join("");
             wrap.innerHTML = `
@@ -926,17 +451,17 @@ Pre študentov: Toto je príklad toho, ako IoT dashboard zobrazuje dáta
                     <table class="ptable">
                         <thead><tr>
                             <th>Vstup</th><th>Typ prevodu</th>
-                            <th>V\u00fdsledok</th><th>\u010cas</th>
+                            <th>Výsledok</th><th>Popis</th><th>Čas</th>
                         </tr></thead>
                         <tbody>${rows}</tbody>
                     </table>
                 </div>`;
         }
 
-        window.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("backendUrl").value = window.location.origin;
-            pripojNaBackend();
-        });
+        // ── Spustenie pri načítaní stránky ────────────────────────
+        // AUTOMATICKÉ — bez potreby kliknúť na tlačidlo!
+        nacitajVsetko();
+        setInterval(nacitajVsetko, 5000);
     </script>
 </body>
 </html>

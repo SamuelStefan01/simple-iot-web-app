@@ -30,6 +30,7 @@ import sqlite3
 import datetime
 import json
 import os
+import math
 
 # Vytvorenie aplikacie
 # Flask(__name__) = vytvori instanciu Flask aplikacie
@@ -125,48 +126,103 @@ def hlavna_stranka():
 @app.route("/vypocet")
 def vypocet():
     """
-    Prijme cisla a operaciu cez GET parametre, vykona vypocet,
-    ulozi do databazy a vrati vysledok ako JSON.
+    Biometeorologicky prevodnik — prijme teplotu + druhu velicinu a typ vypoctu,
+    vykona meteorologicky vypocet, ulozi do databazy a vrati vysledok ako JSON.
 
-    Priklad URL: /vypocet?cislo1=10&cislo2=5&operacia=plus
+    Podporovane typy:
+        heat_index   : teplota (°C) + vlhkost (%)   → zdanliva teplota (°C)
+        dew_point    : teplota (°C) + vlhkost (%)   → rosny bod (°C)
+        wind_chill   : teplota (°C) + vietor (km/h) → pocitova teplota (°C)
+        abs_humidity : teplota (°C) + vlhkost (%)   → absolutna vlhkost (g/m³)
+
+    Priklad URL: /vypocet?cislo1=30&cislo2=75&operacia=heat_index
     """
-    # Krok 1: Citanie parametrov z URL
+    # Krok 1: Citanie GET parametrov
     cislo1_str = request.args.get("cislo1", "0")
     cislo2_str = request.args.get("cislo2", "0")
-    operacia = request.args.get("operacia", "plus")
+    operacia   = request.args.get("operacia", "heat_index")
 
-    # Krok 2: Validacia vstupov
+    # Krok 2: Validacia cisel
     try:
-        cislo1 = float(cislo1_str)
-        cislo2 = float(cislo2_str)
+        teplota = float(cislo1_str)
+        cislo2  = float(cislo2_str)
     except ValueError:
         return jsonify({"chyba": "Neplatne cisla! Zadajte ciselne hodnoty."}), 400
 
-    # Krok 3: Vypocet podla zvolenej operacie
-    if operacia == "plus":
-        vysledok = cislo1 + cislo2
-    elif operacia == "minus":
-        vysledok = cislo1 - cislo2
-    elif operacia == "krat":
-        vysledok = cislo1 * cislo2
-    elif operacia == "deleno":
-        if cislo2 == 0:
-            return jsonify({"chyba": "Delenie nulou nie je mozne!"}), 400
-        vysledok = cislo1 / cislo2
+    # Krok 3: Meteorologicky vypocet
+    if operacia == "heat_index":
+        # Heat Index — Rothfusz regression (platna pre T >= 27°C, RH >= 40%)
+        # Zdroj: Steadman (1979), Rothfusz (1990)
+        rh = cislo2
+        if not (0 <= rh <= 100):
+            return jsonify({"chyba": "Vlhkost musi byt 0–100 %."}), 400
+        T, RH = teplota, rh
+        vysledok = (
+            -8.78469475556
+            + 1.61139411   * T
+            + 2.33854883889 * RH
+            - 0.14611605   * T * RH
+            - 0.012308094  * T ** 2
+            - 0.016424828  * RH ** 2
+            + 0.002211732  * T ** 2 * RH
+            + 0.00072546   * T * RH ** 2
+            - 0.000003582  * T ** 2 * RH ** 2
+        )
+
+    elif operacia == "dew_point":
+        # Rosny bod — Magnus formula
+        # Zdroj: August–Roche–Magnus approximation
+        rh = cislo2
+        if not (1 <= rh <= 100):
+            return jsonify({"chyba": "Vlhkost musi byt 1–100 %."}), 400
+        a, b = 17.27, 237.7
+        gamma = (a * teplota) / (b + teplota) + math.log(rh / 100.0)
+        vysledok = (b * gamma) / (a - gamma)
+
+    elif operacia == "wind_chill":
+        # Pocitova teplota — Wind Chill (Environment Canada, 2001)
+        # Platna pre T <= 10°C a vietor >= 5 km/h
+        v_kmh = cislo2
+        if v_kmh < 5:
+            return jsonify({"chyba": "Rychlost vetra musi byt >= 5 km/h."}), 400
+        vysledok = (
+            13.12
+            + 0.6215  * teplota
+            - 11.37   * (v_kmh ** 0.16)
+            + 0.3965  * teplota * (v_kmh ** 0.16)
+        )
+
+    elif operacia == "abs_humidity":
+        # Absolutna vlhkost — Buck equation
+        # Zdroj: Buck (1981), jednotky: g/m³
+        rh = cislo2
+        if not (0 <= rh <= 100):
+            return jsonify({"chyba": "Vlhkost musi byt 0–100 %."}), 400
+        vysledok = (
+            6.112
+            * math.exp(17.67 * teplota / (teplota + 243.5))
+            * rh
+            * 2.1674
+            / (273.15 + teplota)
+        )
+
     else:
-        return jsonify({"chyba": "Neznama operacia: " + operacia}), 400
+        return jsonify({"chyba": "Neznamy typ: " + operacia +
+                        ". Povolene: heat_index, dew_point, wind_chill, abs_humidity"}), 400
+
+    vysledok = round(vysledok, 4)
 
     # Krok 4: Ulozenie do databazy
-    nove_id = uloz_do_databazy(cislo1, cislo2, operacia, vysledok)
+    nove_id = uloz_do_databazy(teplota, cislo2, operacia, vysledok)
 
-    # Krok 5: Vratie vysledku ako JSON
+    # Krok 5: Vratie JSON odpovede
     return jsonify({
-        "id": nove_id,
-        "cislo1": cislo1,
-        "cislo2": cislo2,
+        "id":       nove_id,
+        "cislo1":   teplota,
+        "cislo2":   cislo2,
         "operacia": operacia,
-        "vysledok": round(vysledok, 4),
-        "cas": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "vysledok": vysledok,
+        "cas":      datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     })
 
 
